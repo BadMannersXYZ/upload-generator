@@ -1,0 +1,7 @@
+# Python
+/venv/
+/__pycache__/
+
+# Project-specific
+/config.json
+/out/
