@@ -21,7 +21,7 @@ def get_rtf_styles(rtf_source: str):
     rtf_styles[style_name] = rtf_style
   return rtf_styles
 
-def main(story_path=None, description_path=None, keep_out_dir=False, ignore_empty_files=False):
+def main(story_path=None, description_path=None, config_path='./config.json', keep_out_dir=False, ignore_empty_files=False):
   remove_out_dir = not keep_out_dir and os.path.isdir(OUT_DIR)
   with tempfile.TemporaryDirectory() as tdir:
     # Clear OUT_DIR if it exists and shouldn't be kept
@@ -88,7 +88,7 @@ def main(story_path=None, description_path=None, keep_out_dir=False, ignore_empt
             print(f'Ignoring error ({error})')
           else:
             raise RuntimeError(error)
-        parse_description(desc, OUT_DIR)
+        parse_description(desc, config_path, OUT_DIR)
 
     except subprocess.CalledProcessError as e:
       if remove_out_dir:
@@ -110,7 +110,9 @@ if __name__ == '__main__':
   parser.add_argument('-s', '--story', dest='story_path',
                       help='path of LibreOffice-readable story file')
   parser.add_argument('-d', '--description', dest='description_path',
-                      help='path of LibreOffice-readable description file')
+                      help='path of BBCode-formatted description file')
+  parser.add_argument('-c', '--config', dest='config_path', default='./config.json',
+                      help='path of JSON configuration file')
   parser.add_argument('-k', '--keep-out-dir', dest='keep_out_dir', action='store_true',
                       help='whether output directory contents should be kept')
   parser.add_argument('-i', '--ignore-empty-files', dest='ignore_empty_files', action='store_true',
@@ -123,5 +125,7 @@ if __name__ == '__main__':
     parser.error('--story must be a valid file')
   if args.description_path and not os.path.isfile(args.description_path):
     parser.error('--description must be a valid file')
+  if args.config_path and not os.path.isfile(args.config_path):
+    parser.error('--config must be a valid file')
 
   main(**vars(args))
