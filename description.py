@@ -28,13 +28,14 @@ DESCRIPTION_GRAMMAR = r"""
 
   self_tag: "[self]" [WS] "[/self]"
   user_tag_root: user_tag
-  user_tag: """
+  user_tag: generic_tag | """
 
 DESCRIPTION_GRAMMAR += ' | '.join(f'{tag}_tag' for tag in SUPPORTED_USER_TAGS)
 
-DESCRIPTION_GRAMMAR += ''.join(f'\n  {tag}_tag: "[{tag}" ["=" USERNAME] "]" USERNAME "[/{tag}]" | "[{tag}"  "=" USERNAME  "]" [user_tag] "[/{tag}]"' for tag in SUPPORTED_USER_TAGS)
+DESCRIPTION_GRAMMAR += ''.join(f'\n  {tag}_tag: "[{tag}" ["=" USERNAME] "]" USERNAME "[/{tag}]" | "[{tag}" "=" USERNAME  "]" [user_tag] "[/{tag}]"' for tag in SUPPORTED_USER_TAGS)
 
 DESCRIPTION_GRAMMAR += r"""
+  generic_tag: "[generic=" URL "]" USERNAME "[/generic]"
 
   USERNAME: /[a-zA-Z0-9][a-zA-Z0-9 _-]*/
   URL: /(https?:\/\/)?[^\]]+/
@@ -42,6 +43,8 @@ DESCRIPTION_GRAMMAR += r"""
 
   %import common.WS
 """
+
+print(DESCRIPTION_GRAMMAR)
 
 DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
 
@@ -111,22 +114,32 @@ class UploadTransformer(lark.Transformer):
   def user_tag_root(self, data):
     user_data: UserTag = data[0]
     for site in user_data.sites:
-      if site == 'eka':
+      if site == 'generic':
+        return self.url_tag((user_data['generic'].strip(), user_data.default))
+      elif site == 'eka':
         return self.url_tag((f'https://aryion.com/g4/user/{user_data["eka"]}', user_data.default or user_data["eka"]))
-      if site == 'fa':
+      elif site == 'fa':
         return self.url_tag((f'https://furaffinity.net/user/{user_data["fa"].replace("_", "")}', user_data.default or user_data['fa']))
-      if site == 'ib':
+      elif site == 'weasyl':
+        return self.url_tag((f'https://www.weasyl.com/~{user_data["weasyl"].replace(" ", "").lower()}', user_data.default or user_data['weasyl']))
+      elif site == 'ib':
         return self.url_tag((f'https://inkbunny.net/{user_data["ib"]}', user_data.default or user_data['ib']))
-      if site == 'sf':
+      elif site == 'sf':
         return self.url_tag((f'https://{user_data["sf"].replace(" ", "-").lower()}.sofurry.com', user_data.default or user_data['sf']))
-      if site == 'twitter':
+      elif site == 'twitter':
         return self.url_tag((f'https://twitter.com/{user_data["twitter"]}', user_data.default or user_data['twitter']))
-      if site == 'weasyl':
-        self.url_tag((f'https://www.weasyl.com/~{user_data["weasyl"].replace(" ", "").lower()}', user_data.default or user_data['weasyl']))
+      else:
+        print(f'Unknown site "{site}" found in user tag; ignoring...')
     raise TypeError('Invalid UserTag data')
 
   def user_tag(self, data):
     return data[0]
+
+  def generic_tag(self, data):
+    attribute, inner = data[0], data[1]
+    user = UserTag(default=inner.strip())
+    user['generic'] = attribute.strip()
+    return user
 
 class BbcodeTransformer(UploadTransformer):
   def b_tag(self, data):

@@ -63,4 +63,6 @@ There are also special tags to link to yourself or other users automatically. Th
 [ib=Amet][weasyl=Sit][/weasyl][/ib] is the same as above, but the Weasyl is prioritized instead.
 
 [ib=Amet][weasyl=Sit]Consectetur[/weasyl][/ib] is the same as above, but Consectetur is displayed as the username for websites other than Inkbunny and Weasyl. The Weasyl gallery is linked to in those websites.
+
+[generic=https://github.com/BadMannersXYZ]Bad Manners[/generic] can be used as the innermost tag with a mandatory URL attribute and default username, and is similar to the URL tag, but it can be nested within other profile links.
 ```
