@@ -1,25 +1,13 @@
 import argparse
-import io
 import os
-import re
-import subprocess
+from subprocess import CalledProcessError
 import tempfile
 
-from parse import parse_description
+from description import parse_description
+from story import parse_story
 
 OUT_DIR = './out'
 
-
-def get_rtf_styles(rtf_source: str):
-  match_list = re.findall(r'\\s(\d+)(?:\\sbasedon\d+)?\\snext\d+((?:\\[a-z0-9]+ ?)+)(?: ([A-Z][a-zA-Z ]*));', rtf_source)
-  if not match_list:
-    raise ValueError(f'Couldn\'t find valid RTF styles')
-  rtf_styles = {}
-  for (style_number, partial_rtf_style, style_name) in match_list:
-    rtf_style = r'\s' + style_number + partial_rtf_style
-    rtf_styles[int(style_number)] = rtf_style
-    rtf_styles[style_name] = rtf_style
-  return rtf_styles
 
 def main(story_path=None, description_path=None, config_path='./config.json', keep_out_dir=False, ignore_empty_files=False):
   remove_out_dir = not keep_out_dir and os.path.isdir(OUT_DIR)
@@ -33,64 +21,13 @@ def main(story_path=None, description_path=None, config_path='./config.json', ke
     try:
       # Convert original file to .rtf (Aryion) and .txt (all others)
       if story_path:
-        story_filename = os.path.split(story_path)[1].rsplit('.')[0]
-        txt_out_path = os.path.join(OUT_DIR, f'{story_filename}.txt')
-        txt_tmp_path = os.path.join(tdir, f'{story_filename}.txt')
-        rtf_out_path = os.path.join(OUT_DIR, f'{story_filename}.rtf')
-        RE_EMPTY_LINE = re.compile('^$')
-        is_only_empty_lines = True
-        ps = subprocess.Popen(('libreoffice', '--cat', story_path), stdout=subprocess.PIPE)
-        with open(txt_out_path, 'w', newline='\r\n') as txt_out, open(txt_tmp_path, 'w') as txt_tmp:
-          needs_empty_line = False
-          for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'):
-            # Remove empty lines
-            line = line.strip()
-            if RE_EMPTY_LINE.search(line) and not is_only_empty_lines:
-              needs_empty_line = True
-            else:
-              if is_only_empty_lines:
-                txt_out.writelines((line,))
-                txt_tmp.writelines((line,))
-                is_only_empty_lines = False
-              else:
-                if needs_empty_line:
-                  txt_out.writelines(('\n\n', line))
-                  needs_empty_line = False
-                else:
-                  txt_out.writelines(('\n', line))
-                txt_tmp.writelines(('\n', line))
-          txt_out.writelines(('\n'))
-        if is_only_empty_lines:
-          error = f'Story processing returned empty file: libreoffice --cat {story_path}'
-          if ignore_empty_files:
-            print(f'Ignoring error ({error})')
-          else:
-            raise RuntimeError(error)
-        # Convert temporary .txt to .rtf
-        subprocess.run(['libreoffice', '--convert-to', 'rtf:Rich Text Format', '--outdir', OUT_DIR, txt_tmp_path], check=True, capture_output=True)
-        # Convert monospace font ('Preformatted Text') to serif ('Normal')
-        with open(rtf_out_path, 'r+') as f:
-          rtf = f.read()
-          rtf_styles = get_rtf_styles(rtf)
-          monospace_style = rtf_styles['Preformatted Text']  # rtf_styles[20]
-          serif_style = rtf_styles['Normal']                 # rtf_styles[0]
-          f.seek(0)
-          f.write(rtf.replace(monospace_style, serif_style))
-          f.truncate()
+        parse_story(story_path, config_path, OUT_DIR, tdir, ignore_empty_files)
 
       # Parse FA description and convert for each website
       if description_path:
-        ps = subprocess.Popen(('libreoffice', '--cat', description_path), stdout=subprocess.PIPE)
-        desc = '\n'.join(line.strip() for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'))
-        if not desc or re.match(r'^\s+$', desc):
-          error = f'Description processing returned empty file: libreoffice --cat {description_path}'
-          if ignore_empty_files:
-            print(f'Ignoring error ({error})')
-          else:
-            raise RuntimeError(error)
-        parse_description(desc, config_path, OUT_DIR)
+        parse_description(description_path, config_path, OUT_DIR, ignore_empty_files)
 
-    except subprocess.CalledProcessError as e:
+    except CalledProcessError as e:
       if remove_out_dir:
         # Revert directory removal on error
         os.rename(OUT_DIR, os.path.join(tdir, 'get_rid_of_this'))

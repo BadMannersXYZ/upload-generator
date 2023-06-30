@@ -25,7 +25,6 @@ In order to parse descriptions, you need a configuration file (default path is `
   "furaffinity": "My_Username",
   "inkbunny": "MyUsername",
   "sofurry": "My Username",
-  "twitter": "MyUsername",
   "weasyl": "MyUsername"
 }
 ```
@@ -40,7 +39,7 @@ Input descriptions should be formatted as BBCode. The following tags are accepte
 [url=https://github.com]URL link[/url]
 ```
 
-There are also special tags to link to yourself or other users automatically:
+There are also special tags to link to yourself or other users automatically. This may include websites not available in the configuration:
 
 ```bbcode
 [self][/self]

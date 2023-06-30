@@ -1,10 +1,14 @@
 from collections import OrderedDict
+import io
 import json
 import lark
 import os
+import re
+import subprocess
 import typing
 
-SUPPORTED_USER_TAGS = ('eka', 'fa', 'weasyl', 'ib', 'sf', 'twitter')
+
+SUPPORTED_USER_TAGS = ['eka', 'fa', 'weasyl', 'ib', 'sf', 'twitter']
 
 DESCRIPTION_GRAMMAR = r"""
   ?start: document_list
@@ -34,7 +38,7 @@ DESCRIPTION_GRAMMAR += r"""
 
   USERNAME: /[a-zA-Z0-9][a-zA-Z0-9 _-]*/
   URL: /(https?:\/\/)?[^\]]+/
-  TEXT: /([^\[:]|[ \t\r\n]|:(?!icon))+/
+  TEXT: /([^\[]|[ \t\r\n])+/
 
   %import common.WS
 """
@@ -43,8 +47,8 @@ DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
 
 
 class UserTag:
-  def __init__(self, default=None, **kwargs):
-    self.default: typing.Optional[str] = default
+  def __init__(self, default: typing.Optional[str]=None, **kwargs):
+    self.default = default
     self._sites: typing.OrderedDict[str, typing.Optional[str]] = OrderedDict()
     for (k, v) in kwargs.items():
       if k in SUPPORTED_USER_TAGS:
@@ -241,29 +245,25 @@ class SoFurryTransformer(BbcodeTransformer):
           return f'ib!{user_data["ib"]}'
     return super(SoFurryTransformer, self).user_tag_root(data)
 
-class TwitterTransformer(PlaintextTransformer):
-  def __init__(self, this_user, *args, **kwargs):
-    super(TwitterTransformer, self).__init__(*args, **kwargs)
-    self.self_tag = lambda _: self.user_tag_root((UserTag(twitter=this_user),))
 
-  def user_tag_root(self, data):
-    user_data = data[0]
-    if user_data['twitter']:
-      return f'@{user_data["twitter"]}'
-    return super(TwitterTransformer, self).user_tag_root(data)
+def parse_description(description_path, config_path, out_dir, ignore_empty_files=False):
+  ps = subprocess.Popen(('libreoffice', '--cat', description_path), stdout=subprocess.PIPE)
+  description = '\n'.join(line.strip() for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'))
+  if not description or re.match(r'^\s+$', description):
+    error = f'Description processing returned empty file: libreoffice --cat {description_path}'
+    if ignore_empty_files:
+      print(f'Ignoring error ({error})')
+    else:
+      raise RuntimeError(error)
 
-TRANSFORMATIONS = {
-  'aryion': ('desc_aryion.txt', AryionTransformer),
-  'furaffinity': ('desc_furaffinity.txt', FuraffinityTransformer),
-  'inkbunny': ('desc_inkbunny.txt', InkbunnyTransformer),
-  'sofurry': ('desc_sofurry.txt', SoFurryTransformer),
-  'twitter': ('desc_twitter.txt', TwitterTransformer),
-  'weasyl': ('desc_weasyl.md', WeasylTransformer),
-}
-
-
-def parse_description(description, config_path, out_dir):
   parsed_description = DESCRIPTION_PARSER.parse(description)
+  transformations = {
+    'aryion': ('desc_aryion.txt', AryionTransformer),
+    'furaffinity': ('desc_furaffinity.txt', FuraffinityTransformer),
+    'inkbunny': ('desc_inkbunny.txt', InkbunnyTransformer),
+    'sofurry': ('desc_sofurry.txt', SoFurryTransformer),
+    'weasyl': ('desc_weasyl.md', WeasylTransformer),
+  }
   with open(config_path, 'r') as f:
     config = json.load(f)
   # Validate JSON
@@ -272,7 +272,7 @@ def parse_description(description, config_path, out_dir):
     errors.append(ValueError('Configuration must be a JSON object'))
   else:
     for (website, username) in config.items():
-      if website not in TRANSFORMATIONS:
+      if website not in transformations:
         errors.append(ValueError(f'Website \'{website}\' is unsupported'))
       elif type(username) is not str:
         errors.append(ValueError(f'Website \'{website}\' has invalid username \'{json.dumps(username)}\''))
@@ -282,7 +282,7 @@ def parse_description(description, config_path, out_dir):
     raise ExceptionGroup('Invalid configuration for description parsing', errors)
   # Create descriptions
   for (website, username) in config.items():
-    (filepath, transformer) = TRANSFORMATIONS[website]
+    (filepath, transformer) = transformations[website]
     with open(os.path.join(out_dir, filepath), 'w') as f:
       if description:
         f.write(transformer(username).transform(parsed_description))
