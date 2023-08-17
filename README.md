@@ -9,7 +9,7 @@ Script to generate multi-gallery upload-ready files.
 
 ## Usage
 
-Run with `python main.py -h` for options. Generated files are output to `./out/`.
+Run with `python main.py -h` for options. Generated files are output to `./out` by default.
 
 ### Story files
 
@@ -17,7 +17,7 @@ When generating an .RTF file from the source text, the script expects that Libre
 
 ### Description files
 
-In order to parse descriptions, you need a configuration file (default path is `./config.json`) with the websites you wish to upload to and your username there. For example:
+In order to parse descriptions, you need a configuration file (default path is `./config.json`) with the websites you wish to upload to, and your username there. For example:
 
 ```json
 {
@@ -49,10 +49,11 @@ There are also special tags to link to yourself or other users automatically. Th
 [weasyl]WeasylUser[/weasyl]
 [ib]InkbunnyUser[/ib]
 [sf]SoFurryUser[/sf]
-[twitter]TwitterUser[/twitter]
+[twitter]@TwitterUser[/twitter] - Leading '@' is optional
+[mastodon]@MastodonUser@mastodoninstance.com[/mastodon] - Leading '@' is optional
 ```
 
-`[self]` tags must always be empty. The other tags are nestable and flexible, allowing attributes to display information differently on each supported website. Some examples:
+`[self][/self]` tags must always be empty. The other tags are nestable and flexible, allowing attributes to display information differently on each supported website. Some examples:
 
 ```bbcode
 [eka=Lorem][/eka] is equivalent to [eka]Lorem[/eka].
@@ -64,5 +65,5 @@ There are also special tags to link to yourself or other users automatically. Th
 
 [ib=Amet][weasyl=Sit]Consectetur[/weasyl][/ib] is the same as above, but Consectetur is displayed as the username for websites other than Inkbunny and Weasyl. The Weasyl gallery is linked to in those websites.
 
-[generic=https://github.com/BadMannersXYZ]Bad Manners[/generic] can be used as the innermost tag with a mandatory URL attribute and default username, and is similar to the URL tag, but it can be nested within other profile links.
+[generic=https://github.com/BadMannersXYZ]Bad Manners[/generic] can be used as the innermost tag with a mandatory URL attribute and default username, and is similar to the URL tag, but it can be nested within other profile links that get used for intra-linking only.
 ```

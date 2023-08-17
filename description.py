@@ -8,7 +8,7 @@ import subprocess
 import typing
 
 
-SUPPORTED_USER_TAGS = ['eka', 'fa', 'weasyl', 'ib', 'sf', 'twitter']
+SUPPORTED_USER_TAGS = ['eka', 'fa', 'weasyl', 'ib', 'sf', 'twitter', 'mastodon']
 
 DESCRIPTION_GRAMMAR = r"""
   ?start: document_list
@@ -17,6 +17,7 @@ DESCRIPTION_GRAMMAR = r"""
 
   document: b_tag
           | i_tag
+          | u_tag
           | url_tag
           | self_tag
           | user_tag_root
@@ -24,14 +25,14 @@ DESCRIPTION_GRAMMAR = r"""
 
   b_tag: "[b]" [document_list] "[/b]"
   i_tag: "[i]" [document_list] "[/i]"
+  u_tag: "[u]" [document_list] "[/u]"
   url_tag: "[url" ["=" [URL]] "]" [document_list] "[/url]"
 
-  self_tag: "[self]" [WS] "[/self]"
+  self_tag: "[self][/self]"
   user_tag_root: user_tag
   user_tag: generic_tag | """
 
 DESCRIPTION_GRAMMAR += ' | '.join(f'{tag}_tag' for tag in SUPPORTED_USER_TAGS)
-
 DESCRIPTION_GRAMMAR += ''.join(f'\n  {tag}_tag: "[{tag}" ["=" USERNAME] "]" USERNAME "[/{tag}]" | "[{tag}" "=" USERNAME  "]" [user_tag] "[/{tag}]"' for tag in SUPPORTED_USER_TAGS)
 
 DESCRIPTION_GRAMMAR += r"""
@@ -40,11 +41,7 @@ DESCRIPTION_GRAMMAR += r"""
   USERNAME: /[a-zA-Z0-9][a-zA-Z0-9 _-]*/
   URL: /(https?:\/\/)?[^\]]+/
   TEXT: /([^\[]|[ \t\r\n])+/
-
-  %import common.WS
 """
-
-print(DESCRIPTION_GRAMMAR)
 
 DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
 
@@ -77,6 +74,7 @@ class UploadTransformer(lark.Transformer):
   def __init__(self, *args, **kwargs):
     super(UploadTransformer, self).__init__(*args, **kwargs)
     def _user_tag_factory(tag):
+      # Create a new UserTag if innermost node, or append to list in order
       def user_tag(data):
         attribute, inner = data[0], data[1]
         if attribute and attribute.strip():
@@ -105,6 +103,9 @@ class UploadTransformer(lark.Transformer):
   def i_tag(self, _):
     raise NotImplementedError('UploadTransformer.i_tag is abstract')
 
+  def u_tag(self, _):
+    raise NotImplementedError('UploadTransformer.u_tag is abstract')
+
   def url_tag(self, _):
     raise NotImplementedError('UploadTransformer.url_tag is abstract')
 
@@ -127,7 +128,10 @@ class UploadTransformer(lark.Transformer):
       elif site == 'sf':
         return self.url_tag((f'https://{user_data["sf"].replace(" ", "-").lower()}.sofurry.com', user_data.default or user_data['sf']))
       elif site == 'twitter':
-        return self.url_tag((f'https://twitter.com/{user_data["twitter"]}', user_data.default or user_data['twitter']))
+        return self.url_tag((f'https://twitter.com/{user_data["twitter"].rsplit("@", 1)[-1]}', user_data.default or user_data['twitter']))
+      elif site == 'mastodon':
+        *_, mastodon_user, mastodon_instance = user_data["mastodon"].rsplit('@', 2)
+        return self.url_tag((f'https://{mastodon_instance}/@{mastodon_user}', user_data.default or user_data['mastodon']))
       else:
         print(f'Unknown site "{site}" found in user tag; ignoring...')
     raise TypeError('Invalid UserTag data')
@@ -152,6 +156,11 @@ class BbcodeTransformer(UploadTransformer):
       return ''
     return f'[i]{data[0]}[/i]'
 
+  def u_tag(self, data):
+    if data[0] is None or not data[0].strip():
+      return ''
+    return f'[u]{data[0]}[/u]'
+
   def url_tag(self, data):
     return f'[url={data[0] or ""}]{data[1] or ""}[/url]'
 
@@ -166,25 +175,59 @@ class MarkdownTransformer(UploadTransformer):
       return ''
     return f'*{data[0]}*'
 
+  def u_tag(self, data):
+    if data[0] is None or not data[0].strip():
+      return ''
+    return f'<u>{data[0]}</u>'  # Markdown should support simple HTML tags
+
   def url_tag(self, data):
     return f'[{data[1] or ""}]({data[0] or ""})'
 
 class PlaintextTransformer(UploadTransformer):
   def b_tag(self, data):
-    return f'{data[0] or ""}'
+    return str(data[0]) if data[0] else ''
 
   def i_tag(self, data):
-    return f'{data[0] or ""}'
+    return str(data[0]) if data[0] else ''
+
+  def u_tag(self, data):
+    return str(data[0]) if data[0] else ''
 
   def url_tag(self, data):
     if data[1] is None or not data[1].strip():
-      return f'{data[0] or ""}'
+      return str(data[0]) if data[0] else ''
     return f'{data[1].strip()}: {data[0] or ""}'
 
+  def user_tag_root(self, data):
+    user_data = data[0]
+    for site in user_data.sites:
+      if site == 'generic':
+        break
+      elif site == 'eka':
+        return f'{user_data["eka"]} on Eka\'s Portal'
+      elif site == 'fa':
+        return f'{user_data["fa"]} on Fur Affinity'
+      elif site == 'weasyl':
+        return f'{user_data["weasyl"]} on Weasyl'
+      elif site == 'ib':
+        return f'{user_data["ib"]} on Inkbunny'
+      elif site == 'sf':
+        return f'{user_data["sf"]} on SoFurry'
+      elif site == 'twitter':
+        return f'@{user_data["twitter"].rsplit("@", 1)[-1]} on Twitter'
+      elif site == 'mastodon':
+        *_, mastodon_user, mastodon_instance = user_data["mastodon"].rsplit('@', 2)
+        return f'@{mastodon_user} on {mastodon_instance}'
+      else:
+        print(f'Unknown site "{site}" found in user tag; ignoring...')
+    return super(PlaintextTransformer, self).user_tag_root(data)
+
 class AryionTransformer(BbcodeTransformer):
-  def __init__(self, this_user, *args, **kwargs):
+  def __init__(self, self_user, *args, **kwargs):
     super(AryionTransformer, self).__init__(*args, **kwargs)
-    self.self_tag = lambda _: self.user_tag_root((UserTag(eka=this_user),))
+    def self_tag(data):
+      return self.user_tag_root((UserTag(eka=self_user),))
+    self.self_tag = self_tag
 
   def user_tag_root(self, data):
     user_data = data[0]
@@ -193,9 +236,11 @@ class AryionTransformer(BbcodeTransformer):
     return super(AryionTransformer, self).user_tag_root(data)
 
 class FuraffinityTransformer(BbcodeTransformer):
-  def __init__(self, this_user, *args, **kwargs):
+  def __init__(self, self_user, *args, **kwargs):
     super(FuraffinityTransformer, self).__init__(*args, **kwargs)
-    self.self_tag = lambda _: self.user_tag_root((UserTag(fa=this_user),))
+    def self_tag(data):
+      return self.user_tag_root((UserTag(fa=self_user),))
+    self.self_tag = self_tag
 
   def user_tag_root(self, data):
     user_data = data[0]
@@ -204,9 +249,11 @@ class FuraffinityTransformer(BbcodeTransformer):
     return super(FuraffinityTransformer, self).user_tag_root(data)
 
 class WeasylTransformer(MarkdownTransformer):
-  def __init__(self, this_user, *args, **kwargs):
+  def __init__(self, self_user, *args, **kwargs):
     super(WeasylTransformer, self).__init__(*args, **kwargs)
-    self.self_tag = lambda _: self.user_tag_root((UserTag(weasyl=this_user),))
+    def self_tag(data):
+      return self.user_tag_root((UserTag(weasyl=self_user),))
+    self.self_tag = self_tag
 
   def user_tag_root(self, data):
     user_data = data[0]
@@ -223,9 +270,11 @@ class WeasylTransformer(MarkdownTransformer):
     return super(WeasylTransformer, self).user_tag_root(data)
 
 class InkbunnyTransformer(BbcodeTransformer):
-  def __init__(self, this_user, *args, **kwargs):
+  def __init__(self, self_user, *args, **kwargs):
     super(InkbunnyTransformer, self).__init__(*args, **kwargs)
-    self.self_tag = lambda _: self.user_tag_root((UserTag(ib=this_user),))
+    def self_tag(data):
+      return self.user_tag_root((UserTag(ib=self_user),))
+    self.self_tag = self_tag
 
   def user_tag_root(self, data):
     user_data = data[0]
@@ -242,9 +291,11 @@ class InkbunnyTransformer(BbcodeTransformer):
     return super(InkbunnyTransformer, self).user_tag_root(data)
 
 class SoFurryTransformer(BbcodeTransformer):
-  def __init__(self, this_user, *args, **kwargs):
+  def __init__(self, self_user, *args, **kwargs):
     super(SoFurryTransformer, self).__init__(*args, **kwargs)
-    self.self_tag = lambda _: self.user_tag_root((UserTag(sf=this_user),))
+    def self_tag(data):
+      return self.user_tag_root((UserTag(sf=self_user),))
+    self.self_tag = self_tag
 
   def user_tag_root(self, data):
     user_data = data[0]
@@ -291,6 +342,8 @@ def parse_description(description_path, config_path, out_dir, ignore_empty_files
         errors.append(ValueError(f'Website \'{website}\' has invalid username \'{json.dumps(username)}\''))
       elif username.strip() == '':
         errors.append(ValueError(f'Website \'{website}\' has empty username'))
+    if not any(ws in config for ws in ('aryion', 'furaffinity', 'weasyl', 'inkbunny', 'sofurry')):
+      errors.append(ValueError('No valid websites found'))
   if errors:
     raise ExceptionGroup('Invalid configuration for description parsing', errors)
   # Create descriptions

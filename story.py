@@ -20,11 +20,11 @@ def parse_story(story_path, config_path, out_dir, temp_dir, ignore_empty_files=F
   with open(config_path, 'r') as f:
     config = json.load(f)
   if type(config) is not dict:
-    raise ValueError('Configuration must be a JSON object')
+    raise ValueError('Invalid configuration for story parsing: Configuration must be a JSON object')
   should_create_txt_story = any(ws in config for ws in ('furaffinity', 'weasyl', 'inkbunny', 'sofurry'))
   should_create_rtf_story = any(ws in config for ws in ('aryion',))
   if not should_create_txt_story and not should_create_rtf_story:
-    raise ValueError('')
+    raise ValueError('Invalid configuration for story parsing: No valid websites found')
 
   story_filename = os.path.split(story_path)[1].rsplit('.')[0]
   txt_out_path = os.path.join(out_dir, f'{story_filename}.txt') if should_create_txt_story else os.devnull
@@ -32,6 +32,7 @@ def parse_story(story_path, config_path, out_dir, temp_dir, ignore_empty_files=F
   RE_EMPTY_LINE = re.compile('^$')
   is_only_empty_lines = True
   ps = subprocess.Popen(('libreoffice', '--cat', story_path), stdout=subprocess.PIPE)
+  # Mangle output files so that .RTF will always have a single LF between lines, and .TXT can have one or two CRLF
   with open(txt_out_path, 'w', newline='\r\n') as txt_out, open(txt_tmp_path, 'w') as txt_tmp:
     needs_empty_line = False
     for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'):
