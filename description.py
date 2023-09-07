@@ -20,6 +20,7 @@ DESCRIPTION_GRAMMAR = r"""
           | u_tag
           | url_tag
           | self_tag
+          | if_tag
           | user_tag_root
           | TEXT
 
@@ -29,6 +30,8 @@ DESCRIPTION_GRAMMAR = r"""
   url_tag: "[url" ["=" [URL]] "]" [document_list] "[/url]"
 
   self_tag: "[self][/self]"
+  if_tag: "[if=" CONDITION "]" [document_list] "[/if]" [ "[else]" document_list "[/else]" ]
+
   user_tag_root: user_tag
   user_tag: generic_tag | """
 
@@ -41,6 +44,7 @@ DESCRIPTION_GRAMMAR += r"""
   USERNAME: /[a-zA-Z0-9][a-zA-Z0-9 _-]*/
   URL: /(https?:\/\/)?[^\]]+/
   TEXT: /([^\[]|[ \t\r\n])+/
+  CONDITION: / *[a-z]+ *(==|!=) *[a-zA-Z0-9]+ */
 """
 
 DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
@@ -111,6 +115,27 @@ class UploadTransformer(lark.Transformer):
 
   def self_tag(self, _):
     raise NotImplementedError('UploadTransformer.self_tag is abstract')
+
+  def transformer_matches_site(self, site: str) -> bool:
+    raise NotImplementedError('UploadTransformer.transformer_matches_site is abstract')
+
+  def if_tag(self, data: typing.Tuple[str, str, str]):
+    condition, truthy_document, falsy_document = data
+    equality_condition = condition.split('==')
+    if len(equality_condition) == 2 and equality_condition[1].strip():
+      conditional_test = f'transformer_matches_{equality_condition[0].strip()}'
+      if hasattr(self, conditional_test):
+        if getattr(self, conditional_test)(equality_condition[1].strip()):
+          return truthy_document or ''
+        return falsy_document or ''
+    inequality_condition = condition.split('!=')
+    if len(inequality_condition) == 2 and inequality_condition[1].strip():
+      conditional_test = f'transformer_matches_{inequality_condition[0].strip()}'
+      if hasattr(self, conditional_test):
+        if not getattr(self, conditional_test)(inequality_condition[1].strip()):
+          return truthy_document or ''
+        return falsy_document or ''
+    raise ValueError(f'Invalid [if][/if] tag condition: {condition}')
 
   def user_tag_root(self, data):
     user_data: UserTag = data[0]
@@ -229,6 +254,9 @@ class AryionTransformer(BbcodeTransformer):
       return self.user_tag_root((UserTag(eka=self_user),))
     self.self_tag = self_tag
 
+  def transformer_matches_site(self, site: str) -> bool:
+    return site in ('eka', 'aryion')
+
   def user_tag_root(self, data):
     user_data = data[0]
     if user_data['eka']:
@@ -242,6 +270,9 @@ class FuraffinityTransformer(BbcodeTransformer):
       return self.user_tag_root((UserTag(fa=self_user),))
     self.self_tag = self_tag
 
+  def transformer_matches_site(self, site: str) -> bool:
+    return site in ('fa', 'furaffinity')
+
   def user_tag_root(self, data):
     user_data = data[0]
     if user_data['fa']:
@@ -254,6 +285,9 @@ class WeasylTransformer(MarkdownTransformer):
     def self_tag(data):
       return self.user_tag_root((UserTag(weasyl=self_user),))
     self.self_tag = self_tag
+
+  def transformer_matches_site(self, site: str) -> bool:
+    return site == 'weasyl'
 
   def user_tag_root(self, data):
     user_data = data[0]
@@ -276,6 +310,9 @@ class InkbunnyTransformer(BbcodeTransformer):
       return self.user_tag_root((UserTag(ib=self_user),))
     self.self_tag = self_tag
 
+  def transformer_matches_site(self, site: str) -> bool:
+    return site in ('ib', 'inkbunny')
+
   def user_tag_root(self, data):
     user_data = data[0]
     if user_data['ib']:
@@ -296,6 +333,9 @@ class SoFurryTransformer(BbcodeTransformer):
     def self_tag(data):
       return self.user_tag_root((UserTag(sf=self_user),))
     self.self_tag = self_tag
+
+  def transformer_matches_site(self, site: str) -> bool:
+    return site in ('sf', 'sofurry')
 
   def user_tag_root(self, data):
     user_data = data[0]

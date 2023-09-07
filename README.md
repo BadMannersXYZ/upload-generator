@@ -61,9 +61,11 @@ There are also special tags to link to yourself or other users automatically. Th
 [fa=Ipsum]Dolor[/fa] shows Ipsum's username on FurAffinity, and Dolor everywhere else as a link to Ipsum's FA userpage.
 
 [weasyl=Sit][ib=Amet][/ib][/weasyl] will show the two user links on Weasyl and Inkbunny as expected. For other websites, the innermost tag is prioritized - Inkbunny, in this case.
-[ib=Amet][weasyl=Sit][/weasyl][/ib] is the same as above, but the Weasyl is prioritized instead.
+[ib=Amet][weasyl=Sit][/weasyl][/ib] is the same as above, but the Weasyl link is prioritized instead.
 
-[ib=Amet][weasyl=Sit]Consectetur[/weasyl][/ib] is the same as above, but Consectetur is displayed as the username for websites other than Inkbunny and Weasyl. The Weasyl gallery is linked to in those websites.
+[ib=Amet][weasyl=Sit]Consectetur[/weasyl][/ib] is the same as above, but Consectetur is displayed as the username for websites other than Inkbunny and Weasyl, with a link to the Weasyl gallery.
 
-[generic=https://github.com/BadMannersXYZ]Bad Manners[/generic] can be used as the innermost tag with a mandatory URL attribute and default username, and is similar to the URL tag, but it can be nested within other profile links that get used for intra-linking only.
+[generic=https://github.com/BadMannersXYZ]Bad Manners[/generic] can be used as the innermost tag with a mandatory URL attribute and default username, and is similar to the URL tag, but it can be nested within other profile links. Those other profile links get used only at their respective websites.
 ```
+
+Another special set of tags is `[if][/if]` and `[else][/else]`. The if tag receives a parameter for the condition (i.e. `[if=parameter==value]...[/if]` or `[if=parameter!=value]...[/if]`) to check on the current transformer, and lets you show or omit generated content respectively. The else tag is optional but must appear immediately after an if tag (no whitespace in-between), and displays whenever the condition is false instead. For now, the if tag only accepts the `site` parameter (eg. `[if=site==fa]...[/if][else]...[/else]` or `[if=site!=furaffinity]...[/if]`).
