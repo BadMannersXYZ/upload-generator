@@ -387,10 +387,12 @@ def parse_description(description_path, config_path, out_dir, ignore_empty_files
   if errors:
     raise ExceptionGroup('Invalid configuration for description parsing', errors)
   # Create descriptions
+  re_multiple_empty_lines = re.compile(r'\n\n+')
   for (website, username) in config.items():
     (filepath, transformer) = transformations[website]
     with open(os.path.join(out_dir, filepath), 'w') as f:
-      if description:
-        f.write(transformer(username).transform(parsed_description))
+      if description.strip():
+        transformed_description = transformer(username).transform(parsed_description)
+        f.write(re_multiple_empty_lines.sub('\n\n', transformed_description))
       else:
         f.write('')
