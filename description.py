@@ -121,14 +121,14 @@ class UploadTransformer(lark.Transformer):
 
   def if_tag(self, data: typing.Tuple[str, str, str]):
     condition, truthy_document, falsy_document = data
-    equality_condition = condition.split('==')
+    equality_condition = condition.split('==', 1)
     if len(equality_condition) == 2 and equality_condition[1].strip():
       conditional_test = f'transformer_matches_{equality_condition[0].strip()}'
       if hasattr(self, conditional_test):
         if getattr(self, conditional_test)(equality_condition[1].strip()):
           return truthy_document or ''
         return falsy_document or ''
-    inequality_condition = condition.split('!=')
+    inequality_condition = condition.split('!=', 1)
     if len(inequality_condition) == 2 and inequality_condition[1].strip():
       conditional_test = f'transformer_matches_{inequality_condition[0].strip()}'
       if hasattr(self, conditional_test):
