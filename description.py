@@ -3,6 +3,7 @@ import io
 import json
 import lark
 import os
+import psutil
 import re
 import subprocess
 import typing
@@ -76,7 +77,7 @@ class UserTag:
 
 class UploadTransformer(lark.Transformer):
   def __init__(self, *args, **kwargs):
-    super(UploadTransformer, self).__init__(*args, **kwargs)
+    super().__init__(*args, **kwargs)
     def _user_tag_factory(tag):
       # Create a new UserTag if innermost node, or append to list in order
       def user_tag(data):
@@ -245,48 +246,51 @@ class PlaintextTransformer(UploadTransformer):
         return f'@{mastodon_user} on {mastodon_instance}'
       else:
         print(f'Unknown site "{site}" found in user tag; ignoring...')
-    return super(PlaintextTransformer, self).user_tag_root(data)
+    return super().user_tag_root(data)
 
 class AryionTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
-    super(AryionTransformer, self).__init__(*args, **kwargs)
+    super().__init__(*args, **kwargs)
     def self_tag(data):
       return self.user_tag_root((UserTag(eka=self_user),))
     self.self_tag = self_tag
 
-  def transformer_matches_site(self, site: str) -> bool:
+  @staticmethod
+  def transformer_matches_site(site: str) -> bool:
     return site in ('eka', 'aryion')
 
   def user_tag_root(self, data):
     user_data = data[0]
     if user_data['eka']:
       return f':icon{user_data["eka"]}:'
-    return super(AryionTransformer, self).user_tag_root(data)
+    return super().user_tag_root(data)
 
 class FuraffinityTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
-    super(FuraffinityTransformer, self).__init__(*args, **kwargs)
+    super().__init__(*args, **kwargs)
     def self_tag(data):
       return self.user_tag_root((UserTag(fa=self_user),))
     self.self_tag = self_tag
 
-  def transformer_matches_site(self, site: str) -> bool:
+  @staticmethod
+  def transformer_matches_site(site: str) -> bool:
     return site in ('fa', 'furaffinity')
 
   def user_tag_root(self, data):
     user_data = data[0]
     if user_data['fa']:
       return f':icon{user_data["fa"]}:'
-    return super(FuraffinityTransformer, self).user_tag_root(data)
+    return super().user_tag_root(data)
 
 class WeasylTransformer(MarkdownTransformer):
   def __init__(self, self_user, *args, **kwargs):
-    super(WeasylTransformer, self).__init__(*args, **kwargs)
+    super().__init__(*args, **kwargs)
     def self_tag(data):
       return self.user_tag_root((UserTag(weasyl=self_user),))
     self.self_tag = self_tag
 
-  def transformer_matches_site(self, site: str) -> bool:
+  @staticmethod
+  def transformer_matches_site(site: str) -> bool:
     return site == 'weasyl'
 
   def user_tag_root(self, data):
@@ -301,16 +305,17 @@ class WeasylTransformer(MarkdownTransformer):
           return f'<ib:{user_data["ib"]}>'
         if site == 'sf':
           return f'<sf:{user_data["sf"]}>'
-    return super(WeasylTransformer, self).user_tag_root(data)
+    return super().user_tag_root(data)
 
 class InkbunnyTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
-    super(InkbunnyTransformer, self).__init__(*args, **kwargs)
+    super().__init__(*args, **kwargs)
     def self_tag(data):
       return self.user_tag_root((UserTag(ib=self_user),))
     self.self_tag = self_tag
 
-  def transformer_matches_site(self, site: str) -> bool:
+  @staticmethod
+  def transformer_matches_site(site: str) -> bool:
     return site in ('ib', 'inkbunny')
 
   def user_tag_root(self, data):
@@ -325,16 +330,17 @@ class InkbunnyTransformer(BbcodeTransformer):
           return f'[sf]{user_data["sf"]}[/sf]'
         if site == 'weasyl':
           return f'[weasyl]{user_data["weasyl"].replace(" ", "").lower()}[/weasyl]'
-    return super(InkbunnyTransformer, self).user_tag_root(data)
+    return super().user_tag_root(data)
 
 class SoFurryTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
-    super(SoFurryTransformer, self).__init__(*args, **kwargs)
+    super().__init__(*args, **kwargs)
     def self_tag(data):
       return self.user_tag_root((UserTag(sf=self_user),))
     self.self_tag = self_tag
 
-  def transformer_matches_site(self, site: str) -> bool:
+  @staticmethod
+  def transformer_matches_site(site: str) -> bool:
     return site in ('sf', 'sofurry')
 
   def user_tag_root(self, data):
@@ -347,10 +353,18 @@ class SoFurryTransformer(BbcodeTransformer):
           return f'fa!{user_data["fa"]}'
         if site == 'ib':
           return f'ib!{user_data["ib"]}'
-    return super(SoFurryTransformer, self).user_tag_root(data)
+    return super().user_tag_root(data)
 
 
 def parse_description(description_path, config_path, out_dir, ignore_empty_files=False):
+  for proc in psutil.process_iter(['cmdline']):
+    if proc.info['cmdline'] and 'libreoffice' in proc.info['cmdline'][0] and '--writer' in proc.info['cmdline'][1:]:
+      if ignore_empty_files:
+        print('WARN: LibreOffice Writer appears to be running. This command may output empty files until it is closed.')
+        break
+      print('WARN: LibreOffice Writer appears to be running. This command may raise an error until it is closed.')
+      break
+
   ps = subprocess.Popen(('libreoffice', '--cat', description_path), stdout=subprocess.PIPE)
   description = '\n'.join(line.strip() for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'))
   if not description or re.match(r'^\s+$', description):
@@ -382,17 +396,17 @@ def parse_description(description_path, config_path, out_dir, ignore_empty_files
         errors.append(ValueError(f'Website \'{website}\' has invalid username \'{json.dumps(username)}\''))
       elif username.strip() == '':
         errors.append(ValueError(f'Website \'{website}\' has empty username'))
-    if not any(ws in config for ws in ('aryion', 'furaffinity', 'weasyl', 'inkbunny', 'sofurry')):
+    if not any(ws in config for ws in transformations):
       errors.append(ValueError('No valid websites found'))
   if errors:
     raise ExceptionGroup('Invalid configuration for description parsing', errors)
   # Create descriptions
-  re_multiple_empty_lines = re.compile(r'\n\n+')
+  RE_MULTIPLE_EMPTY_LINES = re.compile(r'\n\n+')
   for (website, username) in config.items():
     (filepath, transformer) = transformations[website]
     with open(os.path.join(out_dir, filepath), 'w') as f:
       if description.strip():
         transformed_description = transformer(username).transform(parsed_description)
-        f.write(re_multiple_empty_lines.sub('\n\n', transformed_description))
+        f.write(RE_MULTIPLE_EMPTY_LINES.sub('\n\n', transformed_description).strip() + '\n')
       else:
         f.write('')
