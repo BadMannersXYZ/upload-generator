@@ -8,8 +8,19 @@ import re
 import subprocess
 import typing
 
+SUPPORTED_SITE_TAGS: typing.Mapping[str, typing.Set[str]] = {
+  'aryion': {'eka', 'aryion'},
+  'furaffinity': {'fa', 'furaffinity'},
+  'weasyl': {'weasyl'},
+  'inkbunny': {'ib', 'inkbunny'},
+  'sofurry': {'sf', 'sofurry'},
+}
 
-SUPPORTED_USER_TAGS = ['eka', 'fa', 'weasyl', 'ib', 'sf', 'twitter', 'mastodon']
+SUPPORTED_USER_TAGS: typing.Mapping[str, typing.Set[str]] = {
+  **SUPPORTED_SITE_TAGS,
+  'twitter': {'twitter'},
+  'mastodon': {'mastodon'},
+}
 
 DESCRIPTION_GRAMMAR = r"""
   ?start: document_list
@@ -23,6 +34,7 @@ DESCRIPTION_GRAMMAR = r"""
           | self_tag
           | if_tag
           | user_tag_root
+          | siteurl_tag_root
           | TEXT
 
   b_tag: "[b]" [document_list] "[/b]"
@@ -33,25 +45,38 @@ DESCRIPTION_GRAMMAR = r"""
   self_tag: "[self][/self]"
   if_tag: "[if=" CONDITION "]" [document_list] "[/if]" [ "[else]" document_list "[/else]" ]
 
-  user_tag_root: user_tag
-  user_tag: generic_tag | """
+  user_tag_root: "[user]" user_tag "[/user]"
+  user_tag: user_tag_generic | """
 
-DESCRIPTION_GRAMMAR += ' | '.join(f'{tag}_tag' for tag in SUPPORTED_USER_TAGS)
-DESCRIPTION_GRAMMAR += ''.join(f'\n  {tag}_tag: "[{tag}" ["=" USERNAME] "]" USERNAME "[/{tag}]" | "[{tag}" "=" USERNAME  "]" [user_tag] "[/{tag}]"' for tag in SUPPORTED_USER_TAGS)
+DESCRIPTION_GRAMMAR += ' | '.join(f'user_tag_{tag}' for tag in SUPPORTED_USER_TAGS)
+for tag, alts in SUPPORTED_USER_TAGS.items():
+  DESCRIPTION_GRAMMAR += f'\n  user_tag_{tag}: '
+  DESCRIPTION_GRAMMAR += ' | '.join(f'"[{alt}" ["=" USERNAME] "]" USERNAME "[/{alt}]" | "[{alt}" "=" USERNAME  "]" [user_tag] "[/{alt}]"' for alt in alts)
 
 DESCRIPTION_GRAMMAR += r"""
-  generic_tag: "[generic=" URL "]" USERNAME "[/generic]"
+  user_tag_generic: "[generic=" URL "]" USERNAME "[/generic]"
 
-  USERNAME: /[a-zA-Z0-9][a-zA-Z0-9 _-]*/
-  URL: /(https?:\/\/)?[^\]]+/
+  siteurl_tag_root: "[siteurl]" siteurl_tag "[/siteurl]"
+  siteurl_tag: siteurl_tag_generic | """
+
+DESCRIPTION_GRAMMAR += ' | '.join(f'siteurl_tag_{tag}' for tag in SUPPORTED_SITE_TAGS)
+for tag, alts in SUPPORTED_SITE_TAGS.items():
+  DESCRIPTION_GRAMMAR += f'\n  siteurl_tag_{tag}: '
+  DESCRIPTION_GRAMMAR += ' | '.join(f'"[{alt}" "=" URL "]" ( siteurl_tag | TEXT ) "[/{alt}]"' for alt in alts)
+
+DESCRIPTION_GRAMMAR += r"""
+  siteurl_tag_generic: "[generic=" URL "]" TEXT "[/generic]"
+
+  USERNAME: / *[a-zA-Z0-9][a-zA-Z0-9 _-]*/
+  URL: / *(https?:\/\/)?[^\]]+ */
   TEXT: /([^\[]|[ \t\r\n])+/
-  CONDITION: / *[a-z]+ *(==|!=) *[a-zA-Z0-9]+ */
+  CONDITION: / *[a-z]+ *(==|!=) *[a-zA-Z0-9]+ *| *[a-z]+ +in +([a-zA-Z0-9]+ *, *)*[a-zA-Z0-9]+ */
 """
 
 DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
 
 
-class UserTag:
+class SiteSwitchTag:
   def __init__(self, default: typing.Optional[str]=None, **kwargs):
     self.default = default
     self._sites: typing.OrderedDict[str, typing.Optional[str]] = OrderedDict()
@@ -71,6 +96,9 @@ class UserTag:
   def __getitem__(self, name: str) -> typing.Optional[str]:
     return self._sites.get(name)
 
+  def __contains__(self, name: str) -> bool:
+    return name in self._sites
+
   @property
   def sites(self):
     yield from self._sites
@@ -78,23 +106,38 @@ class UserTag:
 class UploadTransformer(lark.Transformer):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
+    # Init user_tag_xxxx methods
     def _user_tag_factory(tag):
-      # Create a new UserTag if innermost node, or append to list in order
+      # Create a new user SiteSwitchTag if innermost node, or append to list in order
       def user_tag(data):
         attribute, inner = data[0], data[1]
-        if attribute and attribute.strip():
-          if isinstance(inner, UserTag):
-            inner[tag] = attribute.strip()
-            return inner
-          user = UserTag(default=inner and inner.strip())
-          user[tag] = attribute.strip()
-          return user
-        user = UserTag()
-        user[tag] = inner.strip()
+        if isinstance(inner, SiteSwitchTag):
+          inner[tag] = attribute.strip()
+          return inner
+        user = SiteSwitchTag(default=inner and inner.strip())
+        user[tag] = attribute.strip()
         return user
       return user_tag
     for tag in SUPPORTED_USER_TAGS:
-      setattr(self, f'{tag}_tag', _user_tag_factory(tag))
+      setattr(self, f'user_tag_{tag}', _user_tag_factory(tag))
+    # Init siteurl_tag_xxxx methods
+    def _siteurl_tag_factory(tag):
+      # Create a new siteurl SiteSwitchTag if innermost node, or append to list in order
+      def siteurl_tag(data):
+        attribute, inner = data[0], data[1]
+        if attribute and attribute.strip():
+          if isinstance(inner, SiteSwitchTag):
+            inner[tag] = attribute.strip()
+            return inner
+          siteurl = SiteSwitchTag(default=inner.strip())
+          siteurl[tag] = attribute.strip()
+          return siteurl
+        siteurl = SiteSwitchTag()
+        siteurl[tag] = inner.strip()
+        return siteurl
+      return siteurl_tag
+    for tag in SUPPORTED_SITE_TAGS:
+      setattr(self, f'siteurl_tag_{tag}', _siteurl_tag_factory(tag))
 
   def document_list(self, data):
     return ''.join(data)
@@ -121,7 +164,8 @@ class UploadTransformer(lark.Transformer):
     raise NotImplementedError('UploadTransformer.transformer_matches_site is abstract')
 
   def if_tag(self, data: typing.Tuple[str, str, str]):
-    condition, truthy_document, falsy_document = data
+    condition, truthy_document, falsy_document = data[0], data[1], data[2]
+    # Test equality condition, i.e. `site==foo`
     equality_condition = condition.split('==', 1)
     if len(equality_condition) == 2 and equality_condition[1].strip():
       conditional_test = f'transformer_matches_{equality_condition[0].strip()}'
@@ -129,6 +173,7 @@ class UploadTransformer(lark.Transformer):
         if getattr(self, conditional_test)(equality_condition[1].strip()):
           return truthy_document or ''
         return falsy_document or ''
+    # Test inequality condition, i.e. `site!=foo`
     inequality_condition = condition.split('!=', 1)
     if len(inequality_condition) == 2 and inequality_condition[1].strip():
       conditional_test = f'transformer_matches_{inequality_condition[0].strip()}'
@@ -136,40 +181,64 @@ class UploadTransformer(lark.Transformer):
         if not getattr(self, conditional_test)(inequality_condition[1].strip()):
           return truthy_document or ''
         return falsy_document or ''
+    # Test inclusion condition, i.e. `site in foo,bar`
+    inclusion_condition = condition.split(' in ', 1)
+    if len(inclusion_condition) == 2 and inclusion_condition[1].strip():
+      conditional_test = f'transformer_matches_{inclusion_condition[0].strip()}'
+      if hasattr(self, conditional_test):
+        matches = (parameter.strip() for parameter in equality_condition[1].split(','))
+        if any(getattr(self, conditional_test)(match) for match in matches):
+          return truthy_document or ''
+        return falsy_document or ''
     raise ValueError(f'Invalid [if][/if] tag condition: {condition}')
 
   def user_tag_root(self, data):
-    user_data: UserTag = data[0]
+    user_data: SiteSwitchTag = data[0]
     for site in user_data.sites:
       if site == 'generic':
-        return self.url_tag((user_data['generic'].strip(), user_data.default))
-      elif site == 'eka':
-        return self.url_tag((f'https://aryion.com/g4/user/{user_data["eka"]}', user_data.default or user_data["eka"]))
-      elif site == 'fa':
-        return self.url_tag((f'https://furaffinity.net/user/{user_data["fa"].replace("_", "")}', user_data.default or user_data['fa']))
+        return self.url_tag((user_data['generic'], user_data.default))
+      elif site == 'aryion':
+        return self.url_tag((f'https://aryion.com/g4/user/{user_data["aryion"]}', user_data.default or user_data["aryion"]))
+      elif site == 'furaffinity':
+        return self.url_tag((f'https://furaffinity.net/user/{user_data["furaffinity"].replace("_", "")}', user_data.default or user_data['furaffinity']))
       elif site == 'weasyl':
         return self.url_tag((f'https://www.weasyl.com/~{user_data["weasyl"].replace(" ", "").lower()}', user_data.default or user_data['weasyl']))
-      elif site == 'ib':
-        return self.url_tag((f'https://inkbunny.net/{user_data["ib"]}', user_data.default or user_data['ib']))
-      elif site == 'sf':
-        return self.url_tag((f'https://{user_data["sf"].replace(" ", "-").lower()}.sofurry.com', user_data.default or user_data['sf']))
+      elif site == 'inkbunny':
+        return self.url_tag((f'https://inkbunny.net/{user_data["inkbunny"]}', user_data.default or user_data['inkbunny']))
+      elif site == 'sofurry':
+        return self.url_tag((f'https://{user_data["sofurry"].replace(" ", "-").lower()}.sofurry.com', user_data.default or user_data['sofurry']))
       elif site == 'twitter':
         return self.url_tag((f'https://twitter.com/{user_data["twitter"].rsplit("@", 1)[-1]}', user_data.default or user_data['twitter']))
       elif site == 'mastodon':
         *_, mastodon_user, mastodon_instance = user_data["mastodon"].rsplit('@', 2)
-        return self.url_tag((f'https://{mastodon_instance}/@{mastodon_user}', user_data.default or user_data['mastodon']))
+        return self.url_tag((f'https://{mastodon_instance.strip()}/@{mastodon_user.strip()}', user_data.default or user_data['mastodon']))
       else:
         print(f'Unknown site "{site}" found in user tag; ignoring...')
-    raise TypeError('Invalid UserTag data')
+    raise TypeError('Invalid user SiteSwitchTag data - no matches found')
 
   def user_tag(self, data):
     return data[0]
 
-  def generic_tag(self, data):
+  def user_tag_generic(self, data):
     attribute, inner = data[0], data[1]
-    user = UserTag(default=inner.strip())
+    user = SiteSwitchTag(default=inner.strip())
     user['generic'] = attribute.strip()
     return user
+
+  def siteurl_tag_root(self, data):
+    siteurl_data: SiteSwitchTag = data[0]
+    if 'generic' in siteurl_data:
+      return self.url_tag((siteurl_data['generic'], siteurl_data.default))
+    return ''
+
+  def siteurl_tag(self, data):
+    return data[0]
+
+  def siteurl_tag_generic(self, data):
+    attribute, inner = data[0], data[1]
+    siteurl = SiteSwitchTag(default=inner.strip())
+    siteurl['generic'] = attribute.strip()
+    return siteurl
 
 class BbcodeTransformer(UploadTransformer):
   def b_tag(self, data):
@@ -188,7 +257,9 @@ class BbcodeTransformer(UploadTransformer):
     return f'[u]{data[0]}[/u]'
 
   def url_tag(self, data):
-    return f'[url={data[0] or ""}]{data[1] or ""}[/url]'
+    if data[0] is None or not data[0].strip():
+      return data[1].strip() if data[1] else ''
+    return f'[url={data[0].strip()}]{data[1] if data[1] and data[1].strip() else data[0].strip()}[/url]'
 
 class MarkdownTransformer(UploadTransformer):
   def b_tag(self, data):
@@ -207,7 +278,9 @@ class MarkdownTransformer(UploadTransformer):
     return f'<u>{data[0]}</u>'  # Markdown should support simple HTML tags
 
   def url_tag(self, data):
-    return f'[{data[1] or ""}]({data[0] or ""})'
+    if data[0] is None or not data[0].strip():
+      return data[1].strip() if data[1] else ''
+    return f'[{data[1] if data[1] and data[1].strip() else data[0].strip()}]({data[0].strip()})'
 
 class PlaintextTransformer(UploadTransformer):
   def b_tag(self, data):
@@ -220,30 +293,32 @@ class PlaintextTransformer(UploadTransformer):
     return str(data[0]) if data[0] else ''
 
   def url_tag(self, data):
+    if data[0] is None or not data[0].strip():
+      return data[1] if data[1] and data[1].strip() else ''
     if data[1] is None or not data[1].strip():
-      return str(data[0]) if data[0] else ''
-    return f'{data[1].strip()}: {data[0] or ""}'
+      return data[0].strip()
+    return f'{data[1]}: {data[0].strip()}'
 
   def user_tag_root(self, data):
     user_data = data[0]
     for site in user_data.sites:
       if site == 'generic':
         break
-      elif site == 'eka':
-        return f'{user_data["eka"]} on Eka\'s Portal'
-      elif site == 'fa':
-        return f'{user_data["fa"]} on Fur Affinity'
+      elif site == 'aryion':
+        return f'{user_data["aryion"]} on Eka\'s Portal'
+      elif site == 'furaffinity':
+        return f'{user_data["furaffinity"]} on Fur Affinity'
       elif site == 'weasyl':
         return f'{user_data["weasyl"]} on Weasyl'
-      elif site == 'ib':
-        return f'{user_data["ib"]} on Inkbunny'
-      elif site == 'sf':
-        return f'{user_data["sf"]} on SoFurry'
+      elif site == 'inkbunny':
+        return f'{user_data["inkbunny"]} on Inkbunny'
+      elif site == 'sofurry':
+        return f'{user_data["sofurry"]} on SoFurry'
       elif site == 'twitter':
         return f'@{user_data["twitter"].rsplit("@", 1)[-1]} on Twitter'
       elif site == 'mastodon':
         *_, mastodon_user, mastodon_instance = user_data["mastodon"].rsplit('@', 2)
-        return f'@{mastodon_user} on {mastodon_instance}'
+        return f'@{mastodon_user.strip()} on {mastodon_instance.strip()}'
       else:
         print(f'Unknown site "{site}" found in user tag; ignoring...')
     return super().user_tag_root(data)
@@ -252,41 +327,53 @@ class AryionTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((UserTag(eka=self_user),))
+      return self.user_tag_root((SiteSwitchTag(aryion=self_user),))
     self.self_tag = self_tag
 
   @staticmethod
   def transformer_matches_site(site: str) -> bool:
-    return site in ('eka', 'aryion')
+    return site in SUPPORTED_USER_TAGS['aryion']
 
   def user_tag_root(self, data):
-    user_data = data[0]
-    if user_data['eka']:
-      return f':icon{user_data["eka"]}:'
+    user_data: SiteSwitchTag = data[0]
+    if user_data['aryion']:
+      return f':icon{user_data["aryion"]}:'
     return super().user_tag_root(data)
+
+  def siteurl_tag_root(self, data):
+    siteurl_data: SiteSwitchTag = data[0]
+    if 'aryion' in siteurl_data:
+      return self.url_tag((siteurl_data['aryion'], siteurl_data.default))
+    return super().siteurl_tag_root(data)
 
 class FuraffinityTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((UserTag(fa=self_user),))
+      return self.user_tag_root((SiteSwitchTag(furaffinity=self_user),))
     self.self_tag = self_tag
 
   @staticmethod
   def transformer_matches_site(site: str) -> bool:
-    return site in ('fa', 'furaffinity')
+    return site in SUPPORTED_USER_TAGS['furaffinity']
 
   def user_tag_root(self, data):
-    user_data = data[0]
-    if user_data['fa']:
-      return f':icon{user_data["fa"]}:'
+    user_data: SiteSwitchTag = data[0]
+    if user_data['furaffinity']:
+      return f':icon{user_data["furaffinity"]}:'
     return super().user_tag_root(data)
+
+  def siteurl_tag_root(self, data):
+    siteurl_data: SiteSwitchTag = data[0]
+    if 'furaffinity' in siteurl_data:
+      return self.url_tag((siteurl_data['furaffinity'], siteurl_data.default))
+    return super().siteurl_tag_root(data)
 
 class WeasylTransformer(MarkdownTransformer):
   def __init__(self, self_user, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((UserTag(weasyl=self_user),))
+      return self.user_tag_root((SiteSwitchTag(weasyl=self_user),))
     self.self_tag = self_tag
 
   @staticmethod
@@ -294,66 +381,84 @@ class WeasylTransformer(MarkdownTransformer):
     return site == 'weasyl'
 
   def user_tag_root(self, data):
-    user_data = data[0]
+    user_data: SiteSwitchTag = data[0]
     if user_data['weasyl']:
       return f'<!~{user_data["weasyl"].replace(" ", "")}>'
     if user_data.default is None:
       for site in user_data.sites:
-        if site == 'fa':
-          return f'<fa:{user_data["fa"]}>'
-        if site == 'ib':
-          return f'<ib:{user_data["ib"]}>'
-        if site == 'sf':
-          return f'<sf:{user_data["sf"]}>'
+        if site == 'furaffinity':
+          return f'<fa:{user_data["furaffinity"]}>'
+        if site == 'inkbunny':
+          return f'<ib:{user_data["inkbunny"]}>'
+        if site == 'sofurry':
+          return f'<sf:{user_data["sofurry"]}>'
     return super().user_tag_root(data)
+
+  def siteurl_tag_root(self, data):
+    siteurl_data: SiteSwitchTag = data[0]
+    if 'weasyl' in siteurl_data:
+      return self.url_tag((siteurl_data['weasyl'], siteurl_data.default))
+    return super().siteurl_tag_root(data)
 
 class InkbunnyTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((UserTag(ib=self_user),))
+      return self.user_tag_root((SiteSwitchTag(inkbunny=self_user),))
     self.self_tag = self_tag
 
   @staticmethod
   def transformer_matches_site(site: str) -> bool:
-    return site in ('ib', 'inkbunny')
+    return site in SUPPORTED_USER_TAGS['inkbunny']
 
   def user_tag_root(self, data):
-    user_data = data[0]
-    if user_data['ib']:
-      return f'[iconname]{user_data["ib"]}[/iconname]'
+    user_data: SiteSwitchTag = data[0]
+    if user_data['inkbunny']:
+      return f'[iconname]{user_data["inkbunny"]}[/iconname]'
     if user_data.default is None:
       for site in user_data.sites:
-        if site == 'fa':
-          return f'[fa]{user_data["fa"]}[/fa]'
-        if site == 'sf':
-          return f'[sf]{user_data["sf"]}[/sf]'
+        if site == 'furaffinity':
+          return f'[fa]{user_data["furaffinity"]}[/fa]'
+        if site == 'sofurry':
+          return f'[sf]{user_data["sofurry"]}[/sf]'
         if site == 'weasyl':
           return f'[weasyl]{user_data["weasyl"].replace(" ", "").lower()}[/weasyl]'
     return super().user_tag_root(data)
+
+  def siteurl_tag_root(self, data):
+    siteurl_data: SiteSwitchTag = data[0]
+    if 'inkbunny' in siteurl_data:
+      return self.url_tag((siteurl_data['inkbunny'], siteurl_data.default))
+    return super().siteurl_tag_root(data)
 
 class SoFurryTransformer(BbcodeTransformer):
   def __init__(self, self_user, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((UserTag(sf=self_user),))
+      return self.user_tag_root((SiteSwitchTag(sofurry=self_user),))
     self.self_tag = self_tag
 
   @staticmethod
   def transformer_matches_site(site: str) -> bool:
-    return site in ('sf', 'sofurry')
+    return site in SUPPORTED_USER_TAGS['sofurry']
 
   def user_tag_root(self, data):
-    user_data = data[0]
-    if user_data['sf']:
-      return f':icon{user_data["sf"]}:'
+    user_data: SiteSwitchTag = data[0]
+    if user_data['sofurry']:
+      return f':icon{user_data["sofurry"]}:'
     if user_data.default is None:
       for site in user_data.sites:
-        if site == 'fa':
-          return f'fa!{user_data["fa"]}'
-        if site == 'ib':
-          return f'ib!{user_data["ib"]}'
+        if site == 'furaffinity':
+          return f'fa!{user_data["furaffinity"]}'
+        if site == 'inkbunny':
+          return f'ib!{user_data["inkbunny"]}'
     return super().user_tag_root(data)
+
+  def siteurl_tag_root(self, data):
+    siteurl_data: SiteSwitchTag = data[0]
+    if 'sofurry' in siteurl_data:
+      return self.url_tag((siteurl_data['sofurry'], siteurl_data.default))
+    return super().siteurl_tag_root(data)
 
 
 def parse_description(description_path, config_path, out_dir, ignore_empty_files=False):

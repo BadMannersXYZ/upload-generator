@@ -31,41 +31,64 @@ In order to parse descriptions, you need a configuration file (default path is `
 
 Uppercase letters are optional. Only include your username for websites that you wish to generate descriptions for.
 
+#### Basic formatting
+
 Input descriptions should be formatted as BBCode. The following tags are accepted:
 
 ```bbcode
 [b]Bold text[/b]
 [i]Italic text[/i]
-[url=https://github.com]URL link[/url]
+[url=https://github.com/BadMannersXYZ]URL link[/url]
 ```
 
-There are also special tags to link to yourself or other users automatically. This may include websites not available in the configuration:
+#### Self-link formatting
+
+`[self][/self]` will create a link to yourself for each website, with the same formatting as the `[user]...[/user]` switch. The inside of this tag must be always empty.
+
+#### Conditional formatting
+
+Another special set of tags is `[if=...][/if]` or `[if=...][/if][else][/else]`. The `if` tag lets you conditionally show content for each website. The `else` tag is optional but must appear immediately after an `if` tag (no whitespace in-between), and displays whenever the condition is false instead.
+
+The following parameter is available:
+
+- `site`: eg. `[if=site==fa]...[/if]` or `[if=site!=furaffinity]...[/if][else]...[/else]`
+
+The following conditions are available:
+
+- `==`: eg. `[if=site==eka]Only show this on Eka's Portal![/if][else]Show this everywhere except Eka's Portal![/else]`
+- `!=`: eg. `[if=site!=eka]Show this everywhere except Eka's Portal![/if]`
+- ` in `: eg. `[if=site in eka,fa]Only show this on Eka's Portal and Fur Affinity![/if]`
+
+#### Switch formatting
+
+You can use special switch tags, which will generate different information per website automatically. There are two options available: creating different URLs per website, or linking to different users.
 
 ```bbcode
-[self][/self]
+Available for both [user]...[/user] and [siteurl]...[/siteurl] tags
+- [generic=https://example.com/GenericUser]Generic text to display[/generic]
+- [eka=EkasPortalUser][/eka] [aryion=EkasPortalUser][/aryion]
+- [fa=FurAffinityUser][/fa] [furaffinity=FurAffinityUser][/furaffinity]
+- [weasyl=WeasylUser][/weasyl]
+- [ib=InkbunnyUser][/ib] [inkbunnny=InkbunnyUser][/inkbunnny]
+- [sf=SoFurryUser][/sf] [sofurry=SoFurryUser][/sofurry]
 
-[eka]EkasPortalUser[/eka]
-[fa]FurAffinityUser[/fa]
-[weasyl]WeasylUser[/weasyl]
-[ib]InkbunnyUser[/ib]
-[sf]SoFurryUser[/sf]
-[twitter]@TwitterUser[/twitter] - Leading '@' is optional
-[mastodon]@MastodonUser@mastodoninstance.com[/mastodon] - Leading '@' is optional
+Available only for [user]...[/user]
+- [twitter=@TwitterUser][/twitter] - Leading '@' is optional
+- [mastodon=@MastodonUser@mastodoninstance.com][/mastodon] - Leading '@' is optional
 ```
 
-`[self][/self]` tags must always be empty. The other tags are nestable and flexible, allowing attributes to display information differently on each supported website. Some examples:
+These tags are nestable and flexible, requiring attributes to display information differently on each supported website. Some examples:
 
 ```bbcode
-[eka=Lorem][/eka] is equivalent to [eka]Lorem[/eka].
+[user][eka]Lorem[/eka][/user] is equivalent to [user][eka=Lorem][/eka][/user].
 
-[fa=Ipsum]Dolor[/fa] shows Ipsum's username on FurAffinity, and Dolor everywhere else as a link to Ipsum's FA userpage.
+[user][fa=Ipsum]Dolor[/fa][/user] shows Ipsum's username on Fur Affinity, and "Dolor" everywhere else with a link to Ipsum's FA userpage.
 
-[weasyl=Sit][ib=Amet][/ib][/weasyl] will show the two user links on Weasyl and Inkbunny as expected. For other websites, the innermost tag is prioritized - Inkbunny, in this case.
-[ib=Amet][weasyl=Sit][/weasyl][/ib] is the same as above, but the Weasyl link is prioritized instead.
+[user][ib=Sit][weasyl=Amet][twitter=Consectetur][/twitter][/weasyl][/ib][/user] will show a different usernames on Inkbunny and Weasyl. For other websites, the innermost user name and link are prioritized - Twitter, in this case.
+[user][ib=Sit][twitter=Consectetur][weasyl=Amet][/weasyl][/twitter][/ib][/user] is similar, but the Weasyl user data is prioritized for websites other than Inkbunny. In this case, the Twitter tag is rendered useless, since descriptions can't be generated for the website.
 
-[ib=Amet][weasyl=Sit]Consectetur[/weasyl][/ib] is the same as above, but Consectetur is displayed as the username for websites other than Inkbunny and Weasyl, with a link to the Weasyl gallery.
+[siteurl][sf=https://a.com][eka=https://b.com]Adipiscing[/eka][/sf][/siteurl] displays links on SoFurry and Eka's Portal, with "Adipiscing" as the link's text. Other websites won't display any link.
+[siteurl][sf=https://a.com][eka=https://b.com][generic=https://c.com]Adipiscing[/generic][/eka][/sf][/siteurl] is the same as above, but with the innermost generic tag serving as a fallback, guaranteeing that a link will be generated for all websites.
 
-[generic=https://github.com/BadMannersXYZ]Bad Manners[/generic] can be used as the innermost tag with a mandatory URL attribute and default username, and is similar to the URL tag, but it can be nested within other profile links. Those other profile links get used only at their respective websites.
+[user][fa=Elit][generic=https://github.com/BadMannersXYZ]Bad Manners[/generic][/fa][/user] shows how a generic tag can be used for user links as well, displayed everywhere aside from Fur Affinity in this example. User tags don't need an explicit fallback - the innermost tag is always used as a fallback for user links.
 ```
-
-Another special set of tags is `[if][/if]` or `[if][/if][else][/else]`. The if tag receives a parameter for the condition (i.e. `[if=parameter==value]...[/if]` or `[if=parameter!=value]...[/if]`) to check on the current transformer, and lets you show or omit generated content respectively. The else tag is optional but must appear immediately after an if tag (no characters or whitespace in-between), and displays whenever the condition is false instead. For now, the if tag only accepts the `site` parameter (eg. `[if=site==fa]...[/if][else]...[/else]` or `[if=site!=furaffinity]...[/if][else]...[/else]`).
