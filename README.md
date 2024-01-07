@@ -7,9 +7,28 @@ Script to generate multi-gallery upload-ready files.
 - A Python environment to install dependencies (`pip install -r requirements.txt`); if unsure, create a fresh one with `virtualenv venv`.
 - LibreOffice 6.0+, making sure that `libreoffice` is in your PATH.
 
+## Installation
+
+I recommend creating a virtualenv first. Linux/Mac/Unix example:
+
+```sh
+virtualenv venv
+source venv/bin/activate  # Also run every time you'll use this tool
+pip install -r requirements.txt
+activate-global-python-argcomplete
+```
+
+Windows example (no autocompletion):
+
+```powershell
+virtualenv venv
+./venv/Scripts/activate  # Also run every time you'll use this tool
+pip install -r requirements.txt
+```
+
 ## Usage
 
-Run with `python main.py -h` for options. Generated files are output to `./out` by default.
+Run with `python main.py -h` (or simply `./main.py -h`) for options. Generated files are output to `./out` by default.
 
 ### Story files
 

@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+import argcomplete
+from argcomplete.completers import FilesCompleter, DirectoriesCompleter
 import argparse
 import os
 from subprocess import CalledProcessError
@@ -52,19 +56,20 @@ def main(out_dir_path=None, story_path=None, description_path=None, file_path=No
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='generate multi-gallery upload-ready files')
   parser.add_argument('-o', '--output-dir', dest='out_dir_path', default='./out',
-                      help='path of output directory')
+                      help='path of output directory').completer = DirectoriesCompleter
   parser.add_argument('-c', '--config', dest='config_path', default='./config.json',
-                      help='path of JSON configuration file')
+                      help='path of JSON configuration file').completer = FilesCompleter
   parser.add_argument('-s', '--story', dest='story_path',
-                      help='path of LibreOffice-readable story file')
+                      help='path of LibreOffice-readable story file').completer = FilesCompleter
   parser.add_argument('-d', '--description', dest='description_path',
-                      help='path of BBCode-formatted description file')
+                      help='path of BBCode-formatted description file').completer = FilesCompleter
   parser.add_argument('-f', '--file', dest='file_path',
-                      help='path of generic file to include in output (i.e. an image or thumbnail)')
+                      help='path of generic file to include in output (i.e. an image or thumbnail)').completer = FilesCompleter
   parser.add_argument('-k', '--keep-out-dir', dest='keep_out_dir', action='store_true',
                       help='whether output directory contents should be kept.\nif set, a script error may leave partial files behind')
   parser.add_argument('-I', '--ignore-empty-files', dest='ignore_empty_files', action='store_true',
                       help='do not raise an error if any input file is empty or whitespace-only')
+  argcomplete.autocomplete(parser)
   args = parser.parse_args()
 
   if not any([args.story_path, args.description_path]):
