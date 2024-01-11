@@ -17,15 +17,11 @@ def get_rtf_styles(rtf_source: str):
     rtf_styles[style_name] = rtf_style
   return rtf_styles
 
-def parse_story(story_path, config_path, out_dir, temp_dir, ignore_empty_files=False):
-  with open(config_path, 'r') as f:
-    config = json.load(f)
-  if type(config) is not dict:
-    raise ValueError('Invalid configuration for story parsing: Configuration must be a JSON object')
+def parse_story(story_path, config, out_dir, temp_dir, ignore_empty_files=False):
   should_create_txt_story = any(ws in config for ws in ('furaffinity', 'inkbunny', 'sofurry'))
   should_create_md_story = any(ws in config for ws in ('weasyl',))
   should_create_rtf_story = any(ws in config for ws in ('aryion',))
-  if not any((should_create_txt_story, should_create_md_story, should_create_rtf_story)):
+  if not (should_create_txt_story or should_create_md_story or should_create_rtf_story):
     raise ValueError('Invalid configuration for story parsing: No valid websites found')
 
   for proc in psutil.process_iter(['cmdline']):

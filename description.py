@@ -8,13 +8,7 @@ import re
 import subprocess
 import typing
 
-SUPPORTED_SITE_TAGS: typing.Mapping[str, typing.Set[str]] = {
-  'aryion': {'eka', 'aryion'},
-  'furaffinity': {'fa', 'furaffinity'},
-  'weasyl': {'weasyl'},
-  'inkbunny': {'ib', 'inkbunny'},
-  'sofurry': {'sf', 'sofurry'},
-}
+from sites import SUPPORTED_SITE_TAGS
 
 SUPPORTED_USER_TAGS: typing.Mapping[str, typing.Set[str]] = {
   **SUPPORTED_SITE_TAGS,
@@ -70,10 +64,8 @@ DESCRIPTION_GRAMMAR += r"""
   USERNAME: / *[a-zA-Z0-9][a-zA-Z0-9 _-]*/
   URL: / *(https?:\/\/)?[^\]]+ */
   TEXT: /([^\[]|[ \t\r\n])+/
-  CONDITION: / *[a-z]+ *(==|!=) *[a-zA-Z0-9]+ *| *[a-z]+ +in +([a-zA-Z0-9]+ *, *)*[a-zA-Z0-9]+ */
+  CONDITION: / *[a-z]+ *(==|!=) *[a-zA-Z0-9_-]+ *| *[a-z]+ +in +([a-zA-Z0-9_-]+ *, *)*[a-zA-Z0-9_-]+ */
 """
-
-DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
 
 
 class SiteSwitchTag:
@@ -104,18 +96,23 @@ class SiteSwitchTag:
     yield from self._sites
 
 class UploadTransformer(lark.Transformer):
-  def __init__(self, *args, **kwargs):
+  def __init__(self, define_options=set(), *args, **kwargs):
     super().__init__(*args, **kwargs)
+    self.define_options = define_options
     # Init user_tag_xxxx methods
     def _user_tag_factory(tag):
       # Create a new user SiteSwitchTag if innermost node, or append to list in order
       def user_tag(data):
         attribute, inner = data[0], data[1]
-        if isinstance(inner, SiteSwitchTag):
-          inner[tag] = attribute.strip()
-          return inner
-        user = SiteSwitchTag(default=inner and inner.strip())
-        user[tag] = attribute.strip()
+        if attribute and attribute.strip():
+          if isinstance(inner, SiteSwitchTag):
+            inner[tag] = attribute.strip()
+            return inner
+          user = SiteSwitchTag(default=inner and inner.strip())
+          user[tag] = attribute.strip()
+          return user
+        user = SiteSwitchTag()
+        user[tag] = inner.strip()
         return user
       return user_tag
     for tag in SUPPORTED_USER_TAGS:
@@ -129,7 +126,7 @@ class UploadTransformer(lark.Transformer):
           if isinstance(inner, SiteSwitchTag):
             inner[tag] = attribute.strip()
             return inner
-          siteurl = SiteSwitchTag(default=inner.strip())
+          siteurl = SiteSwitchTag(default=inner and inner.strip())
           siteurl[tag] = attribute.strip()
           return siteurl
         siteurl = SiteSwitchTag()
@@ -162,6 +159,9 @@ class UploadTransformer(lark.Transformer):
 
   def transformer_matches_site(self, site: str) -> bool:
     raise NotImplementedError('UploadTransformer.transformer_matches_site is abstract')
+
+  def transformer_matches_define(self, option: str) -> bool:
+    return option in self.define_options
 
   def if_tag(self, data: typing.Tuple[str, str, str]):
     condition, truthy_document, falsy_document = data[0], data[1], data[2]
@@ -324,10 +324,12 @@ class PlaintextTransformer(UploadTransformer):
     return super().user_tag_root(data)
 
 class AryionTransformer(BbcodeTransformer):
-  def __init__(self, self_user, *args, **kwargs):
+  def __init__(self, self_user=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((SiteSwitchTag(aryion=self_user),))
+      if self_user:
+        return self.user_tag_root((SiteSwitchTag(aryion=self_user),))
+      raise ValueError('self_tag is unavailable for AryionTransformer - no user provided')
     self.self_tag = self_tag
 
   @staticmethod
@@ -347,10 +349,12 @@ class AryionTransformer(BbcodeTransformer):
     return super().siteurl_tag_root(data)
 
 class FuraffinityTransformer(BbcodeTransformer):
-  def __init__(self, self_user, *args, **kwargs):
+  def __init__(self, self_user=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((SiteSwitchTag(furaffinity=self_user),))
+      if self_user:
+        return self.user_tag_root((SiteSwitchTag(furaffinity=self_user),))
+      raise ValueError('self_tag is unavailable for FuraffinityTransformer - no user provided')
     self.self_tag = self_tag
 
   @staticmethod
@@ -370,10 +374,12 @@ class FuraffinityTransformer(BbcodeTransformer):
     return super().siteurl_tag_root(data)
 
 class WeasylTransformer(MarkdownTransformer):
-  def __init__(self, self_user, *args, **kwargs):
+  def __init__(self, self_user=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((SiteSwitchTag(weasyl=self_user),))
+      if self_user:
+        return self.user_tag_root((SiteSwitchTag(weasyl=self_user),))
+      raise ValueError('self_tag is unavailable for WeasylTransformer - no user provided')
     self.self_tag = self_tag
 
   @staticmethod
@@ -401,10 +407,12 @@ class WeasylTransformer(MarkdownTransformer):
     return super().siteurl_tag_root(data)
 
 class InkbunnyTransformer(BbcodeTransformer):
-  def __init__(self, self_user, *args, **kwargs):
+  def __init__(self, self_user=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((SiteSwitchTag(inkbunny=self_user),))
+      if self_user:
+        return self.user_tag_root((SiteSwitchTag(inkbunny=self_user),))
+      raise ValueError('self_tag is unavailable for InkbunnyTransformer - no user provided')
     self.self_tag = self_tag
 
   @staticmethod
@@ -432,10 +440,12 @@ class InkbunnyTransformer(BbcodeTransformer):
     return super().siteurl_tag_root(data)
 
 class SoFurryTransformer(BbcodeTransformer):
-  def __init__(self, self_user, *args, **kwargs):
+  def __init__(self, self_user=None, *args, **kwargs):
     super().__init__(*args, **kwargs)
     def self_tag(data):
-      return self.user_tag_root((SiteSwitchTag(sofurry=self_user),))
+      if self_user:
+        return self.user_tag_root((SiteSwitchTag(sofurry=self_user),))
+      raise ValueError('self_tag is unavailable for SoFurryTransformer - no user provided')
     self.self_tag = self_tag
 
   @staticmethod
@@ -461,7 +471,7 @@ class SoFurryTransformer(BbcodeTransformer):
     return super().siteurl_tag_root(data)
 
 
-def parse_description(description_path, config_path, out_dir, ignore_empty_files=False):
+def parse_description(description_path, config, out_dir, ignore_empty_files=False, define_options=set()):
   for proc in psutil.process_iter(['cmdline']):
     if proc.info['cmdline'] and 'libreoffice' in proc.info['cmdline'][0] and '--writer' in proc.info['cmdline'][1:]:
       if ignore_empty_files:
@@ -479,7 +489,7 @@ def parse_description(description_path, config_path, out_dir, ignore_empty_files
     else:
       raise RuntimeError(error)
 
-  parsed_description = DESCRIPTION_PARSER.parse(description)
+  parsed_description = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr').parse(description)
   transformations = {
     'aryion': ('desc_aryion.txt', AryionTransformer),
     'furaffinity': ('desc_furaffinity.txt', FuraffinityTransformer),
@@ -487,22 +497,18 @@ def parse_description(description_path, config_path, out_dir, ignore_empty_files
     'sofurry': ('desc_sofurry.txt', SoFurryTransformer),
     'weasyl': ('desc_weasyl.md', WeasylTransformer),
   }
-  with open(config_path, 'r') as f:
-    config = json.load(f)
+  # assert all(k in SUPPORTED_SITE_TAGS for k in transformations)
   # Validate JSON
   errors = []
-  if type(config) is not dict:
-    errors.append(ValueError('Configuration must be a JSON object'))
-  else:
-    for (website, username) in config.items():
-      if website not in transformations:
-        errors.append(ValueError(f'Website \'{website}\' is unsupported'))
-      elif type(username) is not str:
-        errors.append(ValueError(f'Website \'{website}\' has invalid username \'{json.dumps(username)}\''))
-      elif username.strip() == '':
-        errors.append(ValueError(f'Website \'{website}\' has empty username'))
-    if not any(ws in config for ws in transformations):
-      errors.append(ValueError('No valid websites found'))
+  for (website, username) in config.items():
+    if website not in transformations:
+      errors.append(ValueError(f'Website \'{website}\' is unsupported'))
+    elif type(username) is not str:
+      errors.append(ValueError(f'Website \'{website}\' has invalid username \'{json.dumps(username)}\''))
+    elif username.strip() == '':
+      errors.append(ValueError(f'Website \'{website}\' has empty username'))
+  if not any(ws in config for ws in transformations):
+    errors.append(ValueError('No valid websites found'))
   if errors:
     raise ExceptionGroup('Invalid configuration for description parsing', errors)
   # Create descriptions
@@ -511,7 +517,9 @@ def parse_description(description_path, config_path, out_dir, ignore_empty_files
     (filepath, transformer) = transformations[website]
     with open(os.path.join(out_dir, filepath), 'w') as f:
       if description.strip():
-        transformed_description = transformer(username).transform(parsed_description)
-        f.write(RE_MULTIPLE_EMPTY_LINES.sub('\n\n', transformed_description).strip() + '\n')
-      else:
-        f.write('')
+        transformed_description = transformer(self_user=username, define_options=define_options).transform(parsed_description)
+        cleaned_description = RE_MULTIPLE_EMPTY_LINES.sub('\n\n', transformed_description).strip()
+        if cleaned_description:
+          f.write(cleaned_description)
+          f.write('\n')
+      f.write('')

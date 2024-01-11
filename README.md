@@ -9,20 +9,20 @@ Script to generate multi-gallery upload-ready files.
 
 ## Installation
 
-I recommend creating a virtualenv first. Linux/Mac/Unix example:
+I recommend creating a virtualenv first. Linux/macOS/Unix example:
 
 ```sh
 virtualenv venv
-source venv/bin/activate  # Also run every time you'll use this tool
+source venv/bin/activate  # Also run every time you use this tool
 pip install -r requirements.txt
 activate-global-python-argcomplete
 ```
 
-Windows example (no autocompletion):
+Windows example (autocompletion is not available):
 
 ```powershell
 virtualenv venv
-./venv/Scripts/activate  # Also run every time you'll use this tool
+.\venv\Scripts\activate  # Also run every time you use this tool
 pip install -r requirements.txt
 ```
 
@@ -48,7 +48,7 @@ In order to parse descriptions, you need a configuration file (default path is `
 }
 ```
 
-Uppercase letters are optional. Only include your username for websites that you wish to generate descriptions for.
+Uppercase letters for usernames are optional. Only include your username for websites that you wish to generate descriptions/stories for.
 
 #### Basic formatting
 
@@ -66,17 +66,18 @@ Input descriptions should be formatted as BBCode. The following tags are accepte
 
 #### Conditional formatting
 
-Another special set of tags is `[if=...][/if]` or `[if=...][/if][else][/else]`. The `if` tag lets you conditionally show content for each website. The `else` tag is optional but must appear immediately after an `if` tag (no whitespace in-between), and displays whenever the condition is false instead.
+Another special set of tags is `[if=...][/if]` or `[if=...][/if][else][/else]`. The `if` tag lets you conditionally show content . The `else` tag is optional but must appear immediately after an `if` tag (no whitespace in-between), and displays whenever the condition is false instead.
 
-The following parameter is available:
+The following parameters are available:
 
-- `site`: eg. `[if=site==fa]...[/if]` or `[if=site!=furaffinity]...[/if][else]...[/else]`
+- `site`: generated according to the target website, eg. `[if=site==fa]...[/if]` or `[if=site!=furaffinity]...[/if][else]...[/else]`
+- `define`: generated according to argument(s) defined to the script into the command line (i.e. with the `-D / --define-option` flag), eg. `[if=define==prod]...[/if][else]...[/else]` or `[if=define in possible_flag_1,possible_flag_2]...[/if][else]...[/else]`
 
 The following conditions are available:
 
-- `==`: eg. `[if=site==eka]Only show this on Eka's Portal![/if][else]Show this everywhere except Eka's Portal![/else]`
+- `==`: eg. `[if=site==eka]Only show this on Eka's Portal.[/if][else]Show this everywhere except Eka's Portal![/else]`
 - `!=`: eg. `[if=site!=eka]Show this everywhere except Eka's Portal![/if]`
-- ` in `: eg. `[if=site in eka,fa]Only show this on Eka's Portal and Fur Affinity![/if]`
+- ` in `: eg. `[if=site in eka,fa]Only show this on Eka's Portal or Fur Affinity...[/if]`
 
 #### Switch formatting
 
@@ -101,7 +102,7 @@ These tags are nestable and flexible, requiring attributes to display informatio
 ```bbcode
 [user][eka]Lorem[/eka][/user] is equivalent to [user][eka=Lorem][/eka][/user].
 
-[user][fa=Ipsum]Dolor[/fa][/user] shows Ipsum's username on Fur Affinity, and "Dolor" everywhere else with a link to Ipsum's FA userpage.
+[user][fa=Ipsum]Dolor[/fa][/user] shows Ipsum's username on Fur Affinity, and "Dolor" everywhere else with a link to Ipsum's userpage on FA.
 
 [user][ib=Sit][weasyl=Amet][twitter=Consectetur][/twitter][/weasyl][/ib][/user] will show a different usernames on Inkbunny and Weasyl. For other websites, the innermost user name and link are prioritized - Twitter, in this case.
 [user][ib=Sit][twitter=Consectetur][weasyl=Amet][/weasyl][/twitter][/ib][/user] is similar, but the Weasyl user data is prioritized for websites other than Inkbunny. In this case, the Twitter tag is rendered useless, since descriptions can't be generated for the website.
