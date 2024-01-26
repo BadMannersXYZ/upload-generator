@@ -26,13 +26,13 @@ virtualenv venv
 pip install -r requirements.txt
 ```
 
-## Usage
-
-Run with `python main.py -h` (or simply `./main.py -h`) for options. Generated files are output to `./out` by default.
-
 ## Testing
 
 Run `python test.py`.
+
+## Usage
+
+Run with `python main.py -h` (or simply `./main.py -h`) for options. Generated files are output to `./out` by default.
 
 ### Story files
 
