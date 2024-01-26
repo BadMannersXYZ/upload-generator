@@ -30,6 +30,10 @@ pip install -r requirements.txt
 
 Run with `python main.py -h` (or simply `./main.py -h`) for options. Generated files are output to `./out` by default.
 
+## Testing
+
+Run `python test.py`.
+
 ### Story files
 
 When generating an .RTF file from the source text, the script expects that LibreOffice's style has "Preformatted Text" for plaintext, and "Normal" as the intended style to replace it with. Unless you've tinkered with LibreOffice's default formatting, this won't be an issue.
