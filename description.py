@@ -37,7 +37,7 @@ DESCRIPTION_GRAMMAR = r"""
   url_tag: "[url" ["=" [URL]] "]" [document_list] "[/url]"
 
   self_tag: "[self][/self]"
-  if_tag: "[if=" CONDITION "]" [document_list] "[/if]" [ "[else]" document_list "[/else]" ]
+  if_tag: "[if=" CONDITION "]" [document_list] "[/if]" [ "[else]" [document_list] "[/else]" ]
 
   user_tag_root: "[user]" user_tag "[/user]"
   user_tag: user_tag_generic | """
@@ -61,12 +61,17 @@ for tag, alts in SUPPORTED_SITE_TAGS.items():
 DESCRIPTION_GRAMMAR += r"""
   siteurl_tag_generic: "[generic=" URL "]" TEXT "[/generic]"
 
-  USERNAME: / *[a-zA-Z0-9][a-zA-Z0-9 _-]*/
+  USERNAME: / *@?[a-zA-Z0-9][a-zA-Z0-9 @._-]*/
   URL: / *(https?:\/\/)?[^\]]+ */
   TEXT: /([^\[]|[ \t\r\n])+/
   CONDITION: / *[a-z]+ *(==|!=) *[a-zA-Z0-9_-]+ *| *[a-z]+ +in +([a-zA-Z0-9_-]+ *, *)*[a-zA-Z0-9_-]+ */
 """
 
+DESCRIPTION_PARSER = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr')
+
+
+class DescriptionParsingError(ValueError):
+  pass
 
 class SiteSwitchTag:
   def __init__(self, default: typing.Optional[str]=None, **kwargs):
@@ -186,7 +191,7 @@ class UploadTransformer(lark.Transformer):
     if len(inclusion_condition) == 2 and inclusion_condition[1].strip():
       conditional_test = f'transformer_matches_{inclusion_condition[0].strip()}'
       if hasattr(self, conditional_test):
-        matches = (parameter.strip() for parameter in equality_condition[1].split(','))
+        matches = (parameter.strip() for parameter in inclusion_condition[1].split(','))
         if any(getattr(self, conditional_test)(match) for match in matches):
           return truthy_document or ''
         return falsy_document or ''
@@ -390,14 +395,13 @@ class WeasylTransformer(MarkdownTransformer):
     user_data: SiteSwitchTag = data[0]
     if user_data['weasyl']:
       return f'<!~{user_data["weasyl"].replace(" ", "")}>'
-    if user_data.default is None:
-      for site in user_data.sites:
-        if site == 'furaffinity':
-          return f'<fa:{user_data["furaffinity"]}>'
-        if site == 'inkbunny':
-          return f'<ib:{user_data["inkbunny"]}>'
-        if site == 'sofurry':
-          return f'<sf:{user_data["sofurry"]}>'
+    for site in user_data.sites:
+      if site == 'furaffinity':
+        return f'<fa:{user_data["furaffinity"]}>'
+      if site == 'inkbunny':
+        return f'<ib:{user_data["inkbunny"]}>'
+      if site == 'sofurry':
+        return f'<sf:{user_data["sofurry"]}>'
     return super().user_tag_root(data)
 
   def siteurl_tag_root(self, data):
@@ -423,14 +427,13 @@ class InkbunnyTransformer(BbcodeTransformer):
     user_data: SiteSwitchTag = data[0]
     if user_data['inkbunny']:
       return f'[iconname]{user_data["inkbunny"]}[/iconname]'
-    if user_data.default is None:
-      for site in user_data.sites:
-        if site == 'furaffinity':
-          return f'[fa]{user_data["furaffinity"]}[/fa]'
-        if site == 'sofurry':
-          return f'[sf]{user_data["sofurry"]}[/sf]'
-        if site == 'weasyl':
-          return f'[weasyl]{user_data["weasyl"].replace(" ", "").lower()}[/weasyl]'
+    for site in user_data.sites:
+      if site == 'furaffinity':
+        return f'[fa]{user_data["furaffinity"]}[/fa]'
+      if site == 'sofurry':
+        return f'[sf]{user_data["sofurry"]}[/sf]'
+      if site == 'weasyl':
+        return f'[weasyl]{user_data["weasyl"].replace(" ", "").lower()}[/weasyl]'
     return super().user_tag_root(data)
 
   def siteurl_tag_root(self, data):
@@ -456,12 +459,11 @@ class SoFurryTransformer(BbcodeTransformer):
     user_data: SiteSwitchTag = data[0]
     if user_data['sofurry']:
       return f':icon{user_data["sofurry"]}:'
-    if user_data.default is None:
-      for site in user_data.sites:
-        if site == 'furaffinity':
-          return f'fa!{user_data["furaffinity"]}'
-        if site == 'inkbunny':
-          return f'ib!{user_data["inkbunny"]}'
+    for site in user_data.sites:
+      if site == 'furaffinity':
+        return f'fa!{user_data["furaffinity"]}'
+      if site == 'inkbunny':
+        return f'ib!{user_data["inkbunny"]}'
     return super().user_tag_root(data)
 
   def siteurl_tag_root(self, data):
@@ -470,6 +472,14 @@ class SoFurryTransformer(BbcodeTransformer):
       return self.url_tag((siteurl_data['sofurry'], siteurl_data.default))
     return super().siteurl_tag_root(data)
 
+
+def validate_parsed_tree(parsed_tree):
+  for node in parsed_tree.iter_subtrees_topdown():
+    if node.data in {'b_tag', 'i_tag', 'u_tag', 'url_tag'}:
+      node_type = str(node.data)
+      for node2 in node.find_data(node_type):
+        if node != node2:
+          raise DescriptionParsingError(f'Invalid nested {node_type} on line {node2.data.line} column {node2.data.column}')
 
 def parse_description(description_path, config, out_dir, ignore_empty_files=False, define_options=set()):
   for proc in psutil.process_iter(['cmdline']):
@@ -480,8 +490,9 @@ def parse_description(description_path, config, out_dir, ignore_empty_files=Fals
       print('WARN: LibreOffice Writer appears to be running. This command may raise an error until it is closed.')
       break
 
-  ps = subprocess.Popen(('libreoffice', '--cat', description_path), stdout=subprocess.PIPE)
-  description = '\n'.join(line.strip() for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'))
+  description = ''
+  with subprocess.Popen(('libreoffice', '--cat', description_path), stdout=subprocess.PIPE) as ps:
+    description = '\n'.join(line.strip() for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'))
   if not description or re.match(r'^\s+$', description):
     error = f'Description processing returned empty file: libreoffice --cat {description_path}'
     if ignore_empty_files:
@@ -489,7 +500,21 @@ def parse_description(description_path, config, out_dir, ignore_empty_files=Fals
     else:
       raise RuntimeError(error)
 
-  parsed_description = lark.Lark(DESCRIPTION_GRAMMAR, parser='lalr').parse(description)
+  try:
+    parsed_description = DESCRIPTION_PARSER.parse(description)
+  except lark.UnexpectedInput as e:
+    input_error = e.match_examples(DESCRIPTION_PARSER.parse, {
+      'Unclosed tag': ['[b]text', '[i]text', '[u]text', '[url]text'],
+      'Unopened tag': ['text[/b]', 'text[/i]', 'text[/u]', 'text[/url]'],
+      'Unknown tag': ['[invalid]text[/invalid]'],
+      'Missing tag brackets': ['b]text[/b]', '[btext[/b]', '[b]text/b]', '[b]text[/b', 'i]text[/i]', '[itext[/i]', '[i]text/i]', '[i]text[/i', 'u]text[/u]', '[utext[/u]', '[u]text/u]', '[u]text[/u'],
+      'Missing tag slash': ['[b]text[b]', '[i]text[i]', '[u]text[u]'],
+      'Empty switch tag': ['[user][/user]', '[siteurl][/siteurl]'],
+      'Empty user tag': ['[user][aryion][/aryion][/user]', '[user][furaffinity][/furaffinity][/user]', '[user][inkbunny][/inkbunny][/user]', '[user][sofurry][/sofurry][/user]', '[user][weasyl][/weasyl][/user]', '[user][twitter][/twitter][/user]', '[user][mastodon][/mastodon][/user]', '[user][aryion=][/aryion][/user]', '[user][furaffinity=][/furaffinity][/user]', '[user][inkbunny=][/inkbunny][/user]', '[user][sofurry=][/sofurry][/user]', '[user][weasyl=][/weasyl][/user]', '[user][twitter=][/twitter][/user]', '[user][mastodon=][/mastodon][/user]'],
+      'Empty siteurl tag': ['[siteurl][aryion][/aryion][/siteurl]', '[siteurl][furaffinity][/furaffinity][/siteurl]', '[siteurl][inkbunny][/inkbunny][/siteurl]', '[siteurl][sofurry][/sofurry][/siteurl]', '[siteurl][weasyl][/weasyl][/siteurl]' '[siteurl][aryion=][/aryion][/siteurl]', '[siteurl][furaffinity=][/furaffinity][/siteurl]', '[siteurl][inkbunny=][/inkbunny][/siteurl]', '[siteurl][sofurry=][/sofurry][/siteurl]', '[siteurl][weasyl=][/weasyl][/siteurl]'],
+    })
+    raise DescriptionParsingError(f'Unable to parse description. {input_error or "Unknown grammar error"} in line {e.line} column {e.column}:\n{e.get_context(description)}') from e
+  validate_parsed_tree(parsed_description)
   transformations = {
     'aryion': ('desc_aryion.txt', AryionTransformer),
     'furaffinity': ('desc_furaffinity.txt', FuraffinityTransformer),

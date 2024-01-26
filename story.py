@@ -39,35 +39,35 @@ def parse_story(story_path, config, out_dir, temp_dir, ignore_empty_files=False)
   RE_EMPTY_LINE = re.compile(r'^$')
   RE_SEQUENTIAL_EQUAL_SIGNS = re.compile(r'=(?==)')
   is_only_empty_lines = True
-  ps = subprocess.Popen(('libreoffice', '--cat', story_path), stdout=subprocess.PIPE)
-  # Mangle output files so that .RTF will always have a single LF between lines, and .TXT/.MD can have one or two CRLF
-  with open(txt_out_path, 'w', newline='\r\n') as txt_out, open(md_out_path, 'w', newline='\r\n') as md_out, open(txt_tmp_path, 'w') as txt_tmp:
-    needs_empty_line = False
-    for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'):
-      # Remove empty lines
-      line = line.strip()
-      md_line = line
-      if RE_EMPTY_LINE.search(line) and not is_only_empty_lines:
-        needs_empty_line = True
-      else:
-        if should_create_md_story:
-          md_line = RE_SEQUENTIAL_EQUAL_SIGNS.sub('= ', line.replace(r'*', r'\*'))
-        if is_only_empty_lines:
-          txt_out.writelines((line,))
-          md_out.writelines((md_line,))
-          txt_tmp.writelines((line,))
-          is_only_empty_lines = False
+  with subprocess.Popen(('libreoffice', '--cat', story_path), stdout=subprocess.PIPE) as ps:
+    # Mangle output files so that .RTF will always have a single LF between lines, and .TXT/.MD can have one or two CRLF
+    with open(txt_out_path, 'w', newline='\r\n') as txt_out, open(md_out_path, 'w', newline='\r\n') as md_out, open(txt_tmp_path, 'w') as txt_tmp:
+      needs_empty_line = False
+      for line in io.TextIOWrapper(ps.stdout, encoding='utf-8-sig'):
+        # Remove empty lines
+        line = line.strip()
+        md_line = line
+        if RE_EMPTY_LINE.search(line) and not is_only_empty_lines:
+          needs_empty_line = True
         else:
-          if needs_empty_line:
-            txt_out.writelines(('\n\n', line))
-            md_out.writelines(('\n\n', md_line))
-            needs_empty_line = False
+          if should_create_md_story:
+            md_line = RE_SEQUENTIAL_EQUAL_SIGNS.sub('= ', line.replace(r'*', r'\*'))
+          if is_only_empty_lines:
+            txt_out.writelines((line,))
+            md_out.writelines((md_line,))
+            txt_tmp.writelines((line,))
+            is_only_empty_lines = False
           else:
-            txt_out.writelines(('\n', line))
-            md_out.writelines(('\n', md_line))
-          txt_tmp.writelines(('\n', line))
-    txt_out.writelines(('\n'))
-    md_out.writelines(('\n'))
+            if needs_empty_line:
+              txt_out.writelines(('\n\n', line))
+              md_out.writelines(('\n\n', md_line))
+              needs_empty_line = False
+            else:
+              txt_out.writelines(('\n', line))
+              md_out.writelines(('\n', md_line))
+            txt_tmp.writelines(('\n', line))
+      txt_out.writelines(('\n'))
+      md_out.writelines(('\n'))
   if is_only_empty_lines:
     error = f'Story processing returned empty file: libreoffice --cat {story_path}'
     if ignore_empty_files:

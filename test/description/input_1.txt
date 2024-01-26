@@ -1,0 +1,9 @@
+[b]Hello world![/b]
+
+This is just a [u]simple[/u] test to show that basic functionality of [url=https://github.com/BadMannersXYZ/upload-generator]upload-generator[/url] [i]works[/i]. [if=define==test_parse_description]And this is running in a unit test.[/if][else]Why did you parse this outside of a unit test?![/else]
+
+Reminder that I am [self][/self]!
+
+My friend: [user][sofurry=FriendSoFurry][fa=FriendFa][mastodon=@FriendMastodon@example.org]Friend123[/mastodon][/fa][/sofurry][/user][if=site in ib,aryion,weasyl] (I dunno his account here...)[/if]
+
+[siteurl][eka=https://example.com/eka][inkbunny=https://example.com/ib][generic=https://example.com/generic]Check this page![/generic][/inkbunny][/eka][/siteurl]

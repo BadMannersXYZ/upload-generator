@@ -1,0 +1,12 @@
+:iconUserAryion:
+
+ -> :iconEkaPerson: :iconEkaPerson:
+[url=https://furaffinity.net/user/FaPerson]FaName[/url] [url=https://furaffinity.net/user/FaPerson]FaPerson[/url]
+[url=https://inkbunny.net/IbPerson]IbName[/url] [url=https://inkbunny.net/IbPerson]IbPerson[/url]
+[url=https://sfperson.sofurry.com]SfName[/url] [url=https://sfperson.sofurry.com]SfPerson[/url]
+[url=https://www.weasyl.com/~weasylperson]WeasylName[/url] [url=https://www.weasyl.com/~weasylperson]WeasylPerson[/url]
+[url=https://twitter.com/XPerson]XName[/url] [url=https://twitter.com/XPerson]XPerson[/url]
+[url=https://example.com/@MastodonPerson]MastodonName[/url] [url=https://example.com/@MastodonPerson]MastodonPerson@example.com[/url]
+[url=https://example.net/GenericPerson]GenericName[/url]
+
+[url=https://example.com/aryion]Link[/url]

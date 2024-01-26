@@ -1,0 +1,12 @@
+[self][/self]
+
+[if=site==eka] -> [/if][user][eka=EkaPerson]EkaName[/eka][/user] [user][eka]EkaPerson[/eka][/user]
+[if=site==fa] -> [/if][user][fa=FaPerson]FaName[/fa][/user] [user][fa]FaPerson[/fa][/user]
+[if=site==ib] -> [/if][user][ib=IbPerson]IbName[/ib][/user] [user][ib]IbPerson[/ib][/user]
+[if=site==sofurry] -> [/if][user][sf=SfPerson]SfName[/sf][/user] [user][sf]SfPerson[/sf][/user]
+[if=site==weasyl] -> [/if][user][weasyl=WeasylPerson]WeasylName[/weasyl][/user] [user][weasyl]WeasylPerson[/weasyl][/user]
+[user][twitter=XPerson]XName[/twitter][/user] [user][twitter]XPerson[/twitter][/user]
+[user][mastodon=MastodonPerson@example.com]MastodonName[/mastodon][/user] [user][mastodon]MastodonPerson@example.com[/mastodon][/user]
+[user][twitter=Ignored][generic=https://example.net/GenericPerson]GenericName[/generic][/twitter][/user]
+
+[siteurl][aryion=https://example.com/aryion][furaffinity=https://example.com/furaffinity][inkbunny=https://example.com/inkbunny][sofurry=https://example.com/sofurry][generic=https://example.com/generic]Link[/generic][/sofurry][/inkbunny][/furaffinity][/aryion][/siteurl]

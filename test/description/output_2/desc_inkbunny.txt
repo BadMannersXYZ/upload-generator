@@ -1,0 +1,12 @@
+[iconname]UserInkbunny[/iconname]
+
+[url=https://aryion.com/g4/user/EkaPerson]EkaName[/url] [url=https://aryion.com/g4/user/EkaPerson]EkaPerson[/url]
+[fa]FaPerson[/fa] [fa]FaPerson[/fa]
+ -> [iconname]IbPerson[/iconname] [iconname]IbPerson[/iconname]
+[sf]SfPerson[/sf] [sf]SfPerson[/sf]
+[weasyl]weasylperson[/weasyl] [weasyl]weasylperson[/weasyl]
+[url=https://twitter.com/XPerson]XName[/url] [url=https://twitter.com/XPerson]XPerson[/url]
+[url=https://example.com/@MastodonPerson]MastodonName[/url] [url=https://example.com/@MastodonPerson]MastodonPerson@example.com[/url]
+[url=https://example.net/GenericPerson]GenericName[/url]
+
+[url=https://example.com/inkbunny]Link[/url]

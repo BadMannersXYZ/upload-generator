@@ -57,6 +57,7 @@ Input descriptions should be formatted as BBCode. The following tags are accepte
 ```bbcode
 [b]Bold text[/b]
 [i]Italic text[/i]
+[u]Underline text[/u]
 [url=https://github.com/BadMannersXYZ]URL link[/url]
 ```
 

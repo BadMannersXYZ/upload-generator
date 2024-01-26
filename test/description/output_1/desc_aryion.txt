@@ -1,0 +1,9 @@
+[b]Hello world![/b]
+
+This is just a [u]simple[/u] test to show that basic functionality of [url=https://github.com/BadMannersXYZ/upload-generator]upload-generator[/url] [i]works[/i]. And this is running in a unit test.
+
+Reminder that I am :iconUserAryion:!
+
+My friend: [url=https://example.org/@FriendMastodon]Friend123[/url] (I dunno his account here...)
+
+[url=https://example.com/eka]Check this page![/url]

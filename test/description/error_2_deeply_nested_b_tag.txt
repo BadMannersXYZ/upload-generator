@@ -1,0 +1,1 @@
+ZERO[b]ONE[i]TWO[u]THREE[b]FOUR[url=https://example.com]FIVE[/url]FOUR[/b]THREE[/u]TWO[/i]ONE[/b]ZERO
