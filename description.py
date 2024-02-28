@@ -24,6 +24,7 @@ DESCRIPTION_GRAMMAR = r"""
   document: b_tag
           | i_tag
           | u_tag
+          | center_tag
           | url_tag
           | self_tag
           | if_tag
@@ -34,6 +35,7 @@ DESCRIPTION_GRAMMAR = r"""
   b_tag: "[b]" [document_list] "[/b]"
   i_tag: "[i]" [document_list] "[/i]"
   u_tag: "[u]" [document_list] "[/u]"
+  center_tag: "[center]" [document_list] "[/center]"
   url_tag: "[url" ["=" [URL]] "]" [document_list] "[/url]"
 
   self_tag: "[self][/self]"
@@ -156,6 +158,9 @@ class UploadTransformer(lark.Transformer):
   def u_tag(self, _):
     raise NotImplementedError('UploadTransformer.u_tag is abstract')
 
+  def center_tag(self, _):
+    raise NotImplementedError('UploadTransformer.center_tag is abstract')
+
   def url_tag(self, _):
     raise NotImplementedError('UploadTransformer.url_tag is abstract')
 
@@ -261,6 +266,11 @@ class BbcodeTransformer(UploadTransformer):
       return ''
     return f'[u]{data[0]}[/u]'
 
+  def center_tag(self, data):
+    if data[0] is None or not data[0].strip():
+      return ''
+    return f'[center]{data[0]}[/center]'
+
   def url_tag(self, data):
     if data[0] is None or not data[0].strip():
       return data[1].strip() if data[1] else ''
@@ -295,6 +305,9 @@ class PlaintextTransformer(UploadTransformer):
     return str(data[0]) if data[0] else ''
 
   def u_tag(self, data):
+    return str(data[0]) if data[0] else ''
+
+  def center_tag(self, data):
     return str(data[0]) if data[0] else ''
 
   def url_tag(self, data):
@@ -390,6 +403,11 @@ class WeasylTransformer(MarkdownTransformer):
   @staticmethod
   def transformer_matches_site(site: str) -> bool:
     return site == 'weasyl'
+
+  def center_tag(self, data):
+    if data[0] is None or not data[0].strip():
+      return ''
+    return f'<div class="align-center">{data[0]}</div>'
 
   def user_tag_root(self, data):
     user_data: SiteSwitchTag = data[0]

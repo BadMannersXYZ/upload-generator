@@ -2,7 +2,7 @@
 
 This is just a [u]simple[/u] test to show that basic functionality of [url=https://github.com/BadMannersXYZ/upload-generator]upload-generator[/url] [i]works[/i]. And this is running in a unit test.
 
-Reminder that I am [iconname]UserInkbunny[/iconname]!
+[center]Reminder that I am [iconname]UserInkbunny[/iconname]![/center]
 
 My friend: [fa]FriendFa[/fa] (I dunno his account here...)
 
