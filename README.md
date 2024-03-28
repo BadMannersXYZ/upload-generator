@@ -1,4 +1,6 @@
-# upload-generator
+# upload-generator (ARCHIVE)
+
+> This project has been superseded by my current web gallery build system. It won't receive any more updates.
 
 Script to generate multi-gallery upload-ready files.
 
@@ -62,6 +64,7 @@ Input descriptions should be formatted as BBCode. The following tags are accepte
 [b]Bold text[/b]
 [i]Italic text[/i]
 [u]Underline text[/u]
+[center]Center-aligned text[/center]
 [url=https://github.com/BadMannersXYZ]URL link[/url]
 ```
 
